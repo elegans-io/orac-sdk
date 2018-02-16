@@ -18,6 +18,8 @@ libraryDependencies ++= {
     "org.apache.spark" %% "spark-core" % spark_version, 
     "org.apache.spark" %% "spark-mllib" % spark_version,
     "org.elasticsearch" % "elasticsearch-spark-20_2.11" % elastic_client_version,
+    "org.platanios" %% "tensorflow" % "0.1.1" classifier "linux-cpu-x86_64",
+//    "org.platanios" %% "tensorflow" % "0.1.1" classifier "linux-gpu-x86_64",
     "com.github.scopt" %% "scopt" % "3.5.0"
   )
 }
