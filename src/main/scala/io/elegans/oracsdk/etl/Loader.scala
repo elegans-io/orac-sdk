@@ -1,11 +1,13 @@
 package io.elegans.oracsdk.etl
 
-class Load {
+class Loader {
 
   /**
     * Produces a Json string with all typical fields needed for a book. Category is
     * "book" by default. Returns a tuple (id, json) because the id is needed
     * for PUTing modifications.
+    *
+    *
     *
     * @param id
     * @param name
@@ -15,16 +17,16 @@ class Load {
     * @param pages
     * @param unixTimeStamp publication timestamp in seconds
     * @param isbn
-    * @return (id, itemJson)
+    * @return itemJson
     */
   def makeBookJson(id:String, name:String, category:String="book",
                    author:Option[String]=None,
                    language:Option[String]=None, pages:Option[Int]=None,
-                   unixTimeStamp:Option[Long]=None, isbn:Option[String]=None):(String, String) = {
+                   unixTimeStamp:Option[Long]=None, isbn:Option[String]=None): String = {
 
     val string =  "[" + List(
       author match {
-        case Some(v) => Some(s"""{"key": "author", "value": "$v"}""")
+        case Some(v) => Some(s"""{"key": "author", "value": "${v.replace("\"", "")}"}""")
         case _ => None
       },
       language match {
@@ -53,8 +55,7 @@ class Load {
 
     val props = "{" + List(
       string match {
-        case v: String =>
-          Some(s""" "string": $v """)
+        case v: String => Some(s""" "string": $v """)
         case _ => None
       },
       numerical match {
@@ -67,7 +68,7 @@ class Load {
       }
     ).filter(_ != None).map(_.getOrElse("")).mkString(", ") + "}"
 
-    (id, s"""{"id": "$id", "name": "$name", "category": "$category", "props": $props }""")
+    s"""{"id": "$id", "name": "${name.replace("\"", "")}", "category": "$category", "props": $props }"""
   }
 
   /**
