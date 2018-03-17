@@ -37,21 +37,21 @@ class Loader {
         case Some(v) => Some(s"""{"key": "isbn", "value": "$v"}""")
         case _ => None
       }
-    ).filter(_ != None).map(_.getOrElse(" ")).mkString(", ") + "]"
+    ).filter(_.isDefined).map(_.getOrElse(" ")).mkString(", ") + "]"
 
     val numerical = "[" + List(
       pages match {
         case Some(v) => Some(s"""{"key": "pages", "value": $v}""")
         case _ => None
       }
-    ).filter(_ != None).map(_.getOrElse(" ")).mkString(", ") + "]"
+    ).filter(_.isDefined).map(_.getOrElse(" ")).mkString(", ") + "]"
 
     val timestamp = "[" + List(
       unixTimeStamp match {
         case Some(v) => Some(s"""{"key": "publication", "value": ${v*1000} }""")
         case _ => None
       }
-    ).filter(_ != None).map(_.getOrElse(" ")).mkString(", ") + "]"
+    ).filter(_.isDefined).map(_.getOrElse(" ")).mkString(", ") + "]"
 
     val props = "{" + List(
       string match {
