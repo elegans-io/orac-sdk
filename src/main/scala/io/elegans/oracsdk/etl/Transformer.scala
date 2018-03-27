@@ -81,7 +81,7 @@ class Transformer  extends java.io.Serializable {
 
       val tokenized_column = new_input.map(x => x.last)
       // makes the map (Word, rankid)
-//      val rankid_map = this.tokenizeToRankID()
+//      val rankid_map = this.tokenizeToRankID(...)
 
       val rankid_map = tokenized_column.flatMap(line => line.split(" "))
         .map(x => (x, 1)).reduceByKey((a, b) => a + b)
