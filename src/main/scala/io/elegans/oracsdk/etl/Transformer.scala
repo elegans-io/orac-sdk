@@ -45,10 +45,10 @@ class Transformer  extends java.io.Serializable {
   /**
     * Substitute elements in one or more columns with a numerical ID inversely
     * proportional to occurrence. Eg if RDD contains rows of books,
-    * and the 3rd column is "author" and the 4th "title", it will add a column
-    * an Int.toString where "0" is the most popular book author+title
+    * and the 3rd column is "author" and the 4th "title", `makeRankID(input, Seq(3,4), false)`
+    * will add a column Int.toString where "0" is the most popular book author+title
     * "1" the second most popular etc.
-    * (different books with same author+title will have same RankID)
+    * (different book editions with same author+title will have same RankID)
     *
     * @param input arrays of fields (all strings)
     * @param columns identifiers for the rank
@@ -98,6 +98,33 @@ class Transformer  extends java.io.Serializable {
     }
   }
 
+  /** Takes an RDD with a RankId column and provides a Map with rankID -> RDD(value)
+    * (or the opposite if reverse)
+    *
+    * @param input the RDD with fields, of which one is rankId
+    * @param rankIdColumn where is the rankId
+    * @param value column to be used as value
+    * @param mode "random", "popularity": gets the most popular of the values for each rankID (eg most popular ISBN for books)
+    * @param reverse true produces a map(value -> rankId)
+    */
+  def rankIdValueMap(input: RDD[Array[String]], rankIdColumn: Int, value: Int,
+                       mode: String, reverse: Boolean=false): Map[String, String] = {
+
+    if (!reverse) {
+      if (mode == "random") {
+        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2.toList(0))).collect.toMap
+      } else if (mode == "popularity") {
+        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2))
+          .collect.map(x => (x._1, x._2.toList.groupBy(identity)
+          .mapValues(_.size).toSeq.sortBy(-_._2).toList(0)._1)).toMap
+      } else throw new IllegalArgumentException("mode can only be 'random' or 'popularity")
+
+    } else {
+      input.map(x => (x(value), x(rankIdColumn))).collect.toMap
+    }
+
+
+  }
 
   /** Join two RDD[Array[String]]
     * input = [username, action_date, ...]
