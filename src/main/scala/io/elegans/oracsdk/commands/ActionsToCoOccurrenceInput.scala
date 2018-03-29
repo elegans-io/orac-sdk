@@ -12,7 +12,7 @@ object ActionsToCoOccurrenceInput {
                              input: String = "USER_ACTIONS",
                              output: String = "CO_OCCURRENCE_INPUT")
 
-  private def doGenerate(params: Params) {
+  private def executeTask(params: Params): Unit = {
     val conf = new SparkConf().setAppName("ActionsToCoOccurrenceInput")
     val sc = new SparkContext(conf)
     val actionsEntities = LoadData.actions(path = params.input, sc = sc)
@@ -37,7 +37,7 @@ object ActionsToCoOccurrenceInput {
 
     parser.parse(args, defaultParams) match {
       case Some(params) =>
-        doGenerate(params)
+        executeTask(params)
       case _ =>
         sys.exit(1)
     }

@@ -16,7 +16,7 @@ object DownloadActions {
                              password: String = "adminp4ssw0rd",
                              output: String = "USER_ACTIONS")
 
-  private def doGenerate(params: Params) {
+  private def executeTask(params: Params): Unit = {
     implicit val system: ActorSystem = ActorSystem()
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     implicit val executionContext: ExecutionContextExecutor = system.dispatcher
@@ -60,7 +60,7 @@ object DownloadActions {
 
     parser.parse(args, defaultParams) match {
       case Some(params) =>
-        doGenerate(params)
+        executeTask(params)
       case _ =>
         sys.exit(1)
     }
