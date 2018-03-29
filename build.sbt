@@ -3,9 +3,7 @@ import sbt.url
 
 name := "orac-sdk"
 
-organization := "elegans.io"
-
-version := "0.1"
+organization := "io.elegans"
 
 scalaVersion := "2.11.11"
 crossScalaVersions := Seq("2.11.11")
@@ -22,11 +20,12 @@ resolvers +=
 libraryDependencies ++= {
   val AkkaVersion       = "2.5.8"
   val AkkaHttpVersion   = "10.1.0"
-  val ElasticClientVersion = "6.2.1"
+  val ESClientVersion	= "6.2.3"
   val SparkVersion = "2.2.1"
-  val OracEntitiesVersion = "1.0.0"
+  val OracEntitiesVersion = "1.0.1"
+  val ScoptVersion	= "3.7.0"
   Seq(
-    "com.github.scopt" %% "scopt" % "3.5.0",
+    "com.github.scopt" %% "scopt" % ScoptVersion,
     "com.typesafe.akka" %% "akka-actor" % AkkaVersion,
     "com.typesafe.akka" %% "akka-contrib" % AkkaVersion,
     "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion,

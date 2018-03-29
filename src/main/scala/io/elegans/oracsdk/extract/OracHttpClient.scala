@@ -51,8 +51,8 @@ object OracHttpClient extends OracJsonSupport {
     * @return : a sequence of RawHeader elements
     */
   private[this] def httpJsonHeader(
-                      headerValues: Map[String, String] = Map.empty[String, String],
-                      default: (String, String) = ("application", "json")):
+                                    headerValues: Map[String, String] = Map.empty[String, String],
+                                    default: (String, String) = ("application", "json")):
   immutable.Seq[HttpHeader] = {
     val headers = headerValues.map { case (key, value) =>
       RawHeader(key, value)
@@ -70,7 +70,7 @@ object OracHttpClient extends OracJsonSupport {
     */
   private[this] def streamToFile(path: String, parameters: OracConnectionParameters,
                                  httpMethod: HttpMethod,
-                   filePath: String): Future[IOResult] = {
+                                 filePath: String): Future[IOResult] = {
     val http = Http()
     val entity = Future(HttpEntity.Empty)
     val url = uri(httpParameters = parameters, path = path)
