@@ -61,6 +61,7 @@ object DownloadActions {
     parser.parse(args, defaultParams) match {
       case Some(params) =>
         executeTask(params)
+        sys.exit(0)
       case _ =>
         sys.exit(1)
     }
