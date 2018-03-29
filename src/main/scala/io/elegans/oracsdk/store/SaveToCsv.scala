@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 object SaveToCsv  extends java.io.Serializable {
 
   def saveCoOccurrenceInput(input: RDD[(String, String, Double)], outputFolder: String): Unit = {
-    input.saveAsTextFile(outputFolder)
+    input.map(item => item._1 + "," + item._2 + "," + item).saveAsTextFile(outputFolder)
   }
 
 }
