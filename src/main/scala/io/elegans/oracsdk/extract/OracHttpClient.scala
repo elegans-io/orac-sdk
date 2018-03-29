@@ -1,4 +1,4 @@
-package io.elegans.oracsdk.http
+package io.elegans.oracsdk.extract
 
 /**
   * Created by angelo on 13/02/18.

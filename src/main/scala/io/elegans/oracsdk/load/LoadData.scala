@@ -84,4 +84,5 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
   def stopWords(path: String, sc: SparkContext): Broadcast[Set[String]] = {
     sc.broadcast(Source.fromFile(path).getLines().map(_.trim).toSet)
   }
+
 }

@@ -1,8 +1,9 @@
-package io.elegans.oracsdk.etl
+package io.elegans.oracsdk.transform
 
 import org.apache.spark.rdd.RDD
+import io.elegans.orac.entities._
 
-class Transformer  extends java.io.Serializable {
+object Transformer extends java.io.Serializable {
 
   val informationCleaning = true
 
@@ -78,7 +79,7 @@ class Transformer  extends java.io.Serializable {
 
       val tokenized_column = new_input.map(x => x.last)
       // makes the map (Word, rankid)
-//      val rankid_map = this.tokenizeToRankID(...)
+      //      val rankid_map = this.tokenizeToRankID(...)
 
       val rankid_map = tokenized_column.flatMap(line => line.split(" "))
         .map(x => (x, 1)).reduceByKey((a, b) => a + b)
@@ -108,7 +109,7 @@ class Transformer  extends java.io.Serializable {
     * @param reverse true produces a map(value -> rankId)
     */
   def rankIdValueMap(input: RDD[Array[String]], rankIdColumn: Int, value: Int,
-                       mode: String, reverse: Boolean=false): Map[String, String] = {
+                     mode: String, reverse: Boolean=false): Map[String, String] = {
 
     if (!reverse) {
       if (mode == "random") {
@@ -136,9 +137,9 @@ class Transformer  extends java.io.Serializable {
     */
 
   def join(input: RDD[Array[String]], input_column: Int,
-                     table: RDD[Array[String]], key_column: Int, value_column: Int,
-                     replace: Boolean
-                    ): RDD[Array[String]] = {
+           table: RDD[Array[String]], key_column: Int, value_column: Int,
+           replace: Boolean
+          ): RDD[Array[String]] = {
     if (replace)
       input.map(x => (x(input_column), x))
         .join(
@@ -149,6 +150,21 @@ class Transformer  extends java.io.Serializable {
       input.map(x => (x(input_column), x))
         .join(table.map(x => Tuple2(x(key_column), x(value_column))))
         .map(x => x._2._1 :+ x._2._2)
+  }
+
+  /** extract only the fields needed by the co-occurrence algorithm
+    *
+    * @param input an RDD of Action entities
+    * @return an RDD with tuple (user_id, item_id, score)
+    */
+  def actionsToCoOccurrenceInput(input: RDD[Action]): RDD[(String, String, Double)] = {
+    input.map(entry => {
+      val score: Double = entry.score match {
+        case Some(s) => s
+        case _ => 0.0d
+      }
+      (entry.item_id, entry.user_id, score)
+    })
   }
 }
 
