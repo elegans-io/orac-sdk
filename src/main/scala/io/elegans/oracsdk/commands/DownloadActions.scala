@@ -43,15 +43,15 @@ object DownloadActions {
       opt[String]("indexName")
         .text(s"the index name" +
           s"  default: ${defaultParams.indexName}")
-        .action((x, c) => c.copy(host = x))
+        .action((x, c) => c.copy(indexName = x))
       opt[String]("username")
         .text(s"the orac user name" +
           s"  default: ${defaultParams.username}")
-        .action((x, c) => c.copy(host = x))
+        .action((x, c) => c.copy(username = x))
       opt[String]("password")
         .text(s"the orac password" +
           s"  default: ${defaultParams.password}")
-        .action((x, c) => c.copy(host = x))
+        .action((x, c) => c.copy(password = x))
       opt[String]("output")
         .text(s"the destination directory for the output" +
           s"  default: ${defaultParams.output}")
