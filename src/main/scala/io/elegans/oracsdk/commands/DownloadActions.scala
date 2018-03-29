@@ -5,8 +5,8 @@ import akka.stream.ActorMaterializer
 import io.elegans.oracsdk.extract._
 import scopt.OptionParser
 
-import scala.concurrent.ExecutionContextExecutor
-import scala.util.{Failure, Success}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContextExecutor}
 
 object DownloadActions {
   private case class Params(
@@ -25,10 +25,7 @@ object DownloadActions {
       indexName = params.indexName, username = params.username, password = params.password)
 
     val res = OracHttpClient.downloadActions(parameters = parameters, filePath = params.output)
-    res.onComplete {
-      case Success(value) => println(value.wasSuccessful)
-      case Failure(e) => throw e
-    }
+    Await.result(res, Duration.Inf)
   }
 
   def main(args: Array[String]) {
