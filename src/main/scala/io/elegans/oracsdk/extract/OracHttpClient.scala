@@ -129,7 +129,7 @@ object OracHttpClient extends OracJsonSupport {
       }
       val result = Await.result(response, Duration.Inf)
       result.status match {
-        case StatusCodes.Created | StatusCodes.OK => println("indexed: " + rec.id)
+        case StatusCodes.Created | StatusCodes.OK => println("indexed: " + rec)
         case _ =>
           println("failed indexing entry(" + rec + ") Message(" + result.toString() + ")")
       }
