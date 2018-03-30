@@ -122,8 +122,9 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
     val generationTimestamp = Instant.now().toEpochMilli
     val generationBatch: String = generationTimestamp + "_" + random.nextLong()
 
-    val recommendations = spark.sql("select userId._1, itemId._1, recomm._3 from recomm join userId, " +
-      "itemId where recomm._1 = userId._2 AND recomm._2 = itemId._2")
+    val recommendations =
+      spark.sql("select userId._c0, itemId._c0, recomm._3 from recomm join userId, " +
+        "itemId where recomm._1 = userId._c1 AND recomm._2 = itemId._c1").rdd
       .map(entry =>
         (entry(0).asInstanceOf[String], entry(1).asInstanceOf[String], entry(2).asInstanceOf[Double])).rdd
       .map(recomm => {
