@@ -177,7 +177,7 @@ object Transformer extends java.io.Serializable {
     userIdColumn.toDS.createOrReplaceTempView("userId")
     itemIdColumn.toDS.createOrReplaceTempView("itemId")
     entries.toDS.createOrReplaceTempView("entries")
-    val convertedEntries = spark.sql("select itemID._2, userId._2, entries._3 from entries join userId, " +
+    val convertedEntries = spark.sql("select userId._2, itemId._2, entries._3 from entries join userId, " +
       "itemId where entries._1 = userId._1 AND entries._2 = itemId._1").rdd
       .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
 
