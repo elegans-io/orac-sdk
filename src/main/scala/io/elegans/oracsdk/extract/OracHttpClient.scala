@@ -111,7 +111,6 @@ object OracHttpClient extends OracJsonSupport {
 
   def uploadRecommendation(parameters: OracConnectionParameters, recommendations: RDD[Recommendation]): Unit = {
     recommendations.map { case (rec) =>
-
       val http = Http()
       val entity = Marshal(rec).to[MessageEntity]
       val url = uri(httpParameters = parameters, path = "/recommendation")
@@ -119,11 +118,14 @@ object OracHttpClient extends OracJsonSupport {
         "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
       val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
       val response = entity.flatMap { ent =>
-        http.singleRequest(HttpRequest(
-          method = HttpMethods.POST,
-          uri = url,
-          headers = headers,
-          entity = ent))
+        http.singleRequest(
+          HttpRequest(
+            method = HttpMethods.POST,
+            uri = url,
+            headers = headers,
+            entity = ent
+          )
+        )
       }
       val result = Await.result(response, Duration.Inf)
       result.status match {
