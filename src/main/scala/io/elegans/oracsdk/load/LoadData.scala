@@ -115,7 +115,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
     spark.read.format("csv")
       .option("header", "false")
       .option("delimiter", ",")
-      .load(userIdMappingPath)
+      .load(itemIdMappingPath)
       .createOrReplaceTempView("itemId")
 
     val random: Random.type = scala.util.Random
