@@ -133,7 +133,7 @@ object OracHttpClient extends OracJsonSupport {
         case _ =>
           println("failed indexing entry(" + rec + ") Message(" + result.toString() + ")")
       }
-    }
+    }.collect
   }
 
   /** fetch and write the oracUsers on file
