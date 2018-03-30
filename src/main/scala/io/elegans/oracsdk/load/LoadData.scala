@@ -97,12 +97,12 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
       .option("delimiter", "\t")
       .load(recommPath)
       .map(entry =>
-        (entry(0).asInstanceOf[Long],
+        (entry(0).asInstanceOf[String].toLong,
           entry(1).asInstanceOf[String].replace("[", "").replace("]", "").split(","))
       ).map(entry => entry._2.map { case(item) =>
       val elements = item.split(":")
-      val itemId: Long = elements(0).asInstanceOf[Long]
-      val score: Double = elements(1).asInstanceOf[Double]
+      val itemId: Long = elements(0).toLong
+      val score: Double = elements(1).toDouble
       (entry._1, itemId, score)
     }).flatMap(x => x).createOrReplaceTempView("recomm")
 
