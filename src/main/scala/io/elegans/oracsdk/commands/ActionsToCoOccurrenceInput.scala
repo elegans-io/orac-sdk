@@ -9,7 +9,9 @@ import scopt.OptionParser
 object ActionsToCoOccurrenceInput {
   private case class Params(
                              input: String = "USER_ACTIONS",
-                             output: String = "CO_OCCURRENCE_INPUT")
+                             output: String = "CO_OCCURRENCE_INPUT",
+                             defPref: Double = 2.5
+                           )
 
   private def executeTask(params: Params): Unit = {
     val spark = SparkSession.builder().appName("ActionsToCoOccurrenceInput").getOrCreate()
@@ -17,7 +19,8 @@ object ActionsToCoOccurrenceInput {
 
     val actionsEntities = LoadData.actions(path = params.input, sc = sc)
 
-    val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark)
+    val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark,
+      defPref = params.defPref)
     SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "/ACTIONS")
     SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._1,
       outputFolder = params.output + "/USER_ID_TO_LONG")
@@ -34,6 +37,10 @@ object ActionsToCoOccurrenceInput {
         .text(s"the input file or directory" +
           s"  default: ${defaultParams.input}")
         .action((x, c) => c.copy(input = x))
+      opt[Double]("defPref")
+        .text(s"default preference value if 0.0" +
+          s"  default: ${defaultParams.defPref}")
+        .action((x, c) => c.copy(defPref = x))
       opt[String]("output")
         .text(s"the destination directory for the output: tree subfolders will be created: " +
           s" ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +

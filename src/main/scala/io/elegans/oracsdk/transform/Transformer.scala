@@ -159,7 +159,7 @@ object Transformer extends java.io.Serializable {
     * @return an RDD with 3 tuples
     *         ((str_user_id, long_user_id), (str_item_id, long_item_id), (long_user_id, long_item_id, score))
     */
-  def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession):
+  def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession, defPref: Double = 0.0d):
   (RDD[(String, Long)], RDD[(String, Long)], RDD[(Long, Long, Double)]) = {
     val entries = input.map(entry => {
       val score: Double = entry.score match {
@@ -180,6 +180,7 @@ object Transformer extends java.io.Serializable {
     val convertedEntries = spark.sql("select userId._2, itemId._2, entries._3 from entries join userId, " +
       "itemId where entries._1 = userId._1 AND entries._2 = itemId._1").rdd
       .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
+      .map(entry => (entry._1, entry._2, if(entry._3 == 0) defPref else entry._3 ))
 
     (userIdColumn, itemIdColumn, convertedEntries)
   }
