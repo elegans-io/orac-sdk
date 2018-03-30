@@ -161,9 +161,6 @@ object Transformer extends java.io.Serializable {
     */
   def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession):
   (RDD[(String, Long)], RDD[(String, Long)], RDD[(Long, Long, Double)]) = {
-
-    case class CoOccurrenceItem(userId: String, itemId: String, score: Double)
-
     val entries = input.map(entry => {
       val score: Double = entry.score match {
         case Some(s) => s

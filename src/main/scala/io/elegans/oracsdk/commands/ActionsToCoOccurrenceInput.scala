@@ -18,7 +18,7 @@ object ActionsToCoOccurrenceInput {
     val actionsEntities = LoadData.actions(path = params.input, sc = sc)
 
     val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark)
-    SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "ACTIONS")
+    SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "/ACTIONS")
     SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._1,
       outputFolder = params.output + "/USER_ID_TO_LONG")
     SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
