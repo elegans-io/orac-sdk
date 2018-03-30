@@ -2,6 +2,7 @@ package io.elegans.oracsdk.transform
 
 import org.apache.spark.rdd.RDD
 import io.elegans.orac.entities._
+import org.apache.spark.sql.SparkSession
 
 object Transformer extends java.io.Serializable {
 
@@ -155,17 +156,34 @@ object Transformer extends java.io.Serializable {
   /** extract only the fields needed by the co-occurrence algorithm
     *
     * @param input an RDD of Action entities
-    * @return an RDD with tuple (user_id, item_id, score)
+    * @return an RDD with 3 tuples
+    *         ((str_user_id, long_user_id), (str_item_id, long_item_id), (long_user_id, long_item_id, score))
     */
-  def actionsToCoOccurrenceInput(input: RDD[Action]): RDD[(String, String, Double)] = {
-    input.map(entry => {
+  def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession):
+  (RDD[(String, Long)], RDD[(String, Long)], RDD[(Long, Long, Double)]) = {
+
+    case class CoOccurrenceItem(userId: String, itemId: String, score: Double)
+
+    val entries = input.map(entry => {
       val score: Double = entry.score match {
         case Some(s) => s
         case _ => 0.0d
       }
-      (entry.item_id, entry.user_id, score)
+      (entry.user_id, entry.item_id, score)
     })
+
+    import spark.implicits._
+
+    val userIdColumn = entries.map(x => x._1).distinct.zipWithIndex
+    val itemIdColumn = entries.map(x => x._2).distinct.zipWithIndex
+
+    userIdColumn.toDS.createOrReplaceTempView("userId")
+    itemIdColumn.toDS.createOrReplaceTempView("itemId")
+    entries.toDS.createOrReplaceTempView("entries")
+    val convertedEntries = spark.sql("select itemID._2, userId._2, entries._3 from entries join userId, " +
+      "itemId where entries._1 = userId._1 AND entries._2 = itemId._1").rdd
+      .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
+
+    (userIdColumn, itemIdColumn, convertedEntries)
   }
 }
-
-

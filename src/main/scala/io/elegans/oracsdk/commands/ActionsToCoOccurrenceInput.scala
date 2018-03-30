@@ -1,10 +1,9 @@
 package io.elegans.oracsdk.commands
 
-import org.apache.spark.SparkContext
-import org.apache.spark.SparkConf
 import io.elegans.oracsdk.load.LoadData
-import io.elegans.oracsdk.transform.Transformer
 import io.elegans.oracsdk.store.SaveToCsv
+import io.elegans.oracsdk.transform.Transformer
+import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
 
 object ActionsToCoOccurrenceInput {
@@ -13,11 +12,17 @@ object ActionsToCoOccurrenceInput {
                              output: String = "CO_OCCURRENCE_INPUT")
 
   private def executeTask(params: Params): Unit = {
-    val conf = new SparkConf().setAppName("ActionsToCoOccurrenceInput")
-    val sc = new SparkContext(conf)
+    val spark = SparkSession.builder().appName("ActionsToCoOccurrenceInput").getOrCreate()
+    val sc = spark.sparkContext
+
     val actionsEntities = LoadData.actions(path = params.input, sc = sc)
-    val coOccurrenceInput = Transformer.actionsToCoOccurrenceInput(input = actionsEntities)
-    SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInput, outputFolder = params.output)
+
+    val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark)
+    SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "ACTIONS")
+    SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._1,
+      outputFolder = params.output + "/USER_ID_TO_LONG")
+    SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
+      outputFolder = params.output + "/ITEM_ID_TO_LONG")
   }
 
   def main(args: Array[String]) {
@@ -30,7 +35,8 @@ object ActionsToCoOccurrenceInput {
           s"  default: ${defaultParams.input}")
         .action((x, c) => c.copy(input = x))
       opt[String]("output")
-        .text(s"the destination directory for the output" +
+        .text(s"the destination directory for the output: tree subfolders will be created: " +
+          s" ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +
           s"  default: ${defaultParams.output}")
         .action((x, c) => c.copy(output = x))
     }
