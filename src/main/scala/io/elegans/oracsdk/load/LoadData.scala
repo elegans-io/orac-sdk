@@ -120,7 +120,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
 
     val random: Random.type = scala.util.Random
     val generationTimestamp = Instant.now().toEpochMilli
-    val generationBatch: String = generationTimestamp + "_" + random.nextLong()
+    val generationBatch: String = generationTimestamp + "_" + math.abs(random.nextLong())
 
     val recommendations =
       spark.sql("select userId._c0, itemId._c0, recomm._3 from recomm join userId, " +
