@@ -57,7 +57,7 @@ object UploadLLRRecommendations {
       opt[String]("recommPath")
         .text(s"folder with recommendations" +
           s"  default: ${defaultParams.recommPath}")
-        .action((x, c) => c.copy(indexName = x))
+        .action((x, c) => c.copy(recommPath = x))
       opt[String]("userIdMappingPath")
         .text(s"folder with userId => long mapping" +
           s"  default: ${defaultParams.userIdMappingPath}")
