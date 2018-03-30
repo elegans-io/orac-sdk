@@ -10,15 +10,19 @@ import java.util.Base64
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.scaladsl.{FileIO, Flow, Framing}
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
+import io.elegans.orac.entities.Recommendation
 import io.elegans.orac.serializers.OracJsonSupport
+import org.apache.spark.rdd.RDD
 
 import scala.collection.immutable
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 
 case class OracConnectionParameters(
                                      host: String,
@@ -103,6 +107,31 @@ object OracHttpClient extends OracJsonSupport {
     */
   def downloadActions(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
     streamToFile(path = "/stream/action", parameters = parameters, HttpMethods.GET, filePath = filePath)
+  }
+
+  def uploadRecommendation(parameters: OracConnectionParameters, recommendations: RDD[Recommendation]): Unit = {
+    recommendations.map { case (rec) =>
+
+      val http = Http()
+      val entity = Marshal(rec).to[MessageEntity]
+      val url = uri(httpParameters = parameters, path = "/recommendation")
+      val credentials =
+        "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
+      val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
+      val response = entity.flatMap { ent =>
+        http.singleRequest(HttpRequest(
+          method = HttpMethods.POST,
+          uri = url,
+          headers = headers,
+          entity = ent))
+      }
+      val result = Await.result(response, Duration.Inf)
+      result.status match {
+        case StatusCodes.Created | StatusCodes.OK => println("indexed: " + rec.id)
+        case _ =>
+          println("failed indexing entry(" + rec + ") Message(" + result.toString() + ")")
+      }
+    }
   }
 
   /** fetch and write the oracUsers on file
