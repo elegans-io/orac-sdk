@@ -1,5 +1,7 @@
 package io.elegans.oracsdk.commands
 
+import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import io.elegans.oracsdk.extract._
@@ -31,14 +33,19 @@ object UploadLLRRecommendations {
     val parameters = OracConnectionParameters(host=params.host,
       indexName = params.indexName, username = params.username, password = params.password)
 
+    val generationTimestamp = Instant.now().toEpochMilli
     val recommendations = LoadData.llrRecommendations(
       recommPath = params.recommPath,
+      generationTimestamp = Some(generationTimestamp),
       userIdMappingPath = params.userIdMappingPath,
       itemIdMappingPath = params.itemIdMappingPath,
       spark
     )
 
     OracHttpClient.uploadRecommendation(parameters = parameters, recommendations = recommendations)
+      .collect()
+
+    OracHttpClient.deleteRecommendations(parameters = parameters, from = Some(-1), to = Some(generationTimestamp - 1))
   }
 
   def main(args: Array[String]) {

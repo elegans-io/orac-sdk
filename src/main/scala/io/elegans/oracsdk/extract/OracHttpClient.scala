@@ -13,16 +13,18 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{FileIO, Flow, Framing}
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
-import io.elegans.orac.entities.Recommendation
+import io.elegans.orac.entities.{DeleteDocumentsResult, IndexDocumentResult, Recommendation}
 import io.elegans.orac.serializers.OracJsonSupport
 import org.apache.spark.rdd.RDD
 
 import scala.collection.immutable
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{Duration, _}
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+import scala.util.{Failure, Success, Try}
 
 case class OracConnectionParameters(
                                      host: String,
@@ -109,7 +111,14 @@ object OracHttpClient extends OracJsonSupport {
     streamToFile(path = "/stream/action", parameters = parameters, HttpMethods.GET, filePath = filePath)
   }
 
-  def uploadRecommendation(parameters: OracConnectionParameters, recommendations: RDD[Recommendation]): Unit = {
+  /** upload recommendations on orac-api
+    *
+    * @param parameters http parameters (OracConnectionParameters)
+    * @param recommendations the RDD with the recommendations to upload
+    * @return an RDD with the result of the upload for each item
+    */
+  def uploadRecommendation(parameters: OracConnectionParameters,
+                           recommendations: RDD[Recommendation]): RDD[Option[IndexDocumentResult]] = {
     recommendations.map { case (rec) =>
       val http = Http()
       val entity = Marshal(rec).to[MessageEntity]
@@ -127,14 +136,77 @@ object OracHttpClient extends OracJsonSupport {
           )
         )
       }
+
       val result = Await.result(response, Duration.Inf)
       result.status match {
-        case StatusCodes.Created | StatusCodes.OK => println("indexed: " + rec)
+        case StatusCodes.Created | StatusCodes.OK =>
+          Try(Await.result(Unmarshal(result.entity).to[IndexDocumentResult], 5.second)) match {
+            case Success(resEntity) =>
+              Some(resEntity)
+            case Failure(e) =>
+              println("Error unmarshalling response(" + result + "): " + e.getMessage)
+              None
+          }
         case _ =>
-          println("failed indexing entry(" + rec + ") Message(" + result.toString() + ")")
+          println("Error indexing entry(" + rec + ") Message(" + result.toString() + ")")
+          None
       }
-    }.collect
+    }.filter(_.nonEmpty)
   }
+
+  /** delete all the recommendation within a time range in milliseconds from epoc
+    *
+    * @param parameters http parameters (OracConnectionParameters)
+    * @param from a start range
+    * @param to an end range
+    * @return the data structure with informations about deleted items
+    */
+  def deleteRecommendations(parameters: OracConnectionParameters, from: Option[Long],
+                            to: Option[Long]): Option[DeleteDocumentsResult] = {
+      val http = Http()
+      val entity = Future(HttpEntity.Empty)
+
+      val queryString = if(from.isEmpty && to.isEmpty) {
+        ""
+      } else if(from.isEmpty) {
+        "&to=" + to
+      } else if(to.isEmpty) {
+        "&from=" + from
+      } else {
+        "&from=" + from + "?to=" + to
+      }
+
+      val url = uri(httpParameters = parameters, path = "/recommendation/query" + queryString)
+      val credentials =
+        "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
+      val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
+      val response = entity.flatMap { ent =>
+        http.singleRequest(
+          HttpRequest(
+            method = HttpMethods.DELETE,
+            uri = url,
+            headers = headers,
+            entity = ent
+          )
+        )
+      }
+
+    val result = Await.result(response, Duration.Inf)
+    result.status match {
+      case StatusCodes.Created | StatusCodes.OK =>
+        Try(Await.result(Unmarshal(result.entity).to[DeleteDocumentsResult], 5.second)) match {
+          case Success(resEntity) =>
+            Some(resEntity)
+          case Failure(e) =>
+            println("Error unmarshalling response(" + result + "): " + e.getMessage)
+            None
+        }
+      case _ =>
+        println("failed deleting old recommendations Message(" + result.toString() + ")")
+        None
+    }
+  }
+
 
   /** fetch and write the oracUsers on file
     *

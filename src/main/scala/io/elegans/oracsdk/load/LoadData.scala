@@ -82,12 +82,13 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
   /** load LRR recommendations into an RDD
     *
     * @param recommPath : path of the file with the recommendations
+    * @param generationTimestamp : the generation timestamp for the recommendations
     * @param userIdMappingPath : path of the file with userId => Long mapping
     * @param itemIdMappingPath : path of the file with itemId => Long mapping
     * @param spark : spark session
     * @return : an RDD of Recommendation objects
     */
-  def llrRecommendations(recommPath: String, userIdMappingPath: String,
+  def llrRecommendations(recommPath: String, generationTimestamp: Option[Long] = None, userIdMappingPath: String,
                          itemIdMappingPath: String, spark: SparkSession): RDD[Recommendation] = {
 
     import spark.implicits._
@@ -119,7 +120,10 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
       .createOrReplaceTempView("itemId")
 
     val random: Random.type = scala.util.Random
-    val generationTimestamp = Instant.now().toEpochMilli
+    val generationTs: Long = generationTimestamp match {
+      case Some(ts) => ts
+      case _ => Instant.now().toEpochMilli
+    }
     val generationBatch: String = generationTimestamp + "_" + math.abs(random.nextLong())
 
     val recommendations =
@@ -135,7 +139,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
           name = "rate",
           algorithm = "COO-LLR",
           generation_batch = generationBatch,
-          generation_timestamp = generationTimestamp,
+          generation_timestamp = generationTs,
           score = recomm._3)
       })
     recommendations
