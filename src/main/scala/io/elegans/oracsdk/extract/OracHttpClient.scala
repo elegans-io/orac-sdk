@@ -224,7 +224,7 @@ object OracHttpClient extends OracJsonSupport {
     * @param filePath: the path of the output file
     * @return : a future with an IOResult
     */
-  def downloadItem(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
+  def downloadItems(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
     streamToFile(path = "/stream/item", parameters = parameters, HttpMethods.GET, filePath = filePath)
   }
 }

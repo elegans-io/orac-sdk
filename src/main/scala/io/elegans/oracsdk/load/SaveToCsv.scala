@@ -1,4 +1,4 @@
-package io.elegans.oracsdk.store
+package io.elegans.oracsdk.load
 
 import org.apache.spark.rdd.RDD
 

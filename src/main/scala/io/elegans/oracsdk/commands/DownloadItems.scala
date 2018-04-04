@@ -1,22 +1,16 @@
 package io.elegans.oracsdk.commands
 
-import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import io.elegans.oracsdk.extract._
-import io.elegans.oracsdk.load.LoadData
-import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContextExecutor}
 
-object UploadLLRRecommendations {
+object DownloadItems {
   private case class Params(
                              host: String = "http://localhost:8888",
-                             recommPath: String = "RECOMMENDATIONS",
-                             userIdMappingPath: String = "USERIDMAPPINGS",
-                             itemIdMappingPath: String = "ITEMIDMAPPINGS",
                              indexName: String = "index_english_0",
                              username: String = "admin",
                              password: String = "adminp4ssw0rd",
@@ -27,32 +21,17 @@ object UploadLLRRecommendations {
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     implicit val executionContext: ExecutionContextExecutor = system.dispatcher
 
-    val spark = SparkSession.builder().appName("UploadLLRRecommendations").getOrCreate()
-    val sc = spark.sparkContext
-
     val parameters = OracConnectionParameters(host=params.host,
       indexName = params.indexName, username = params.username, password = params.password)
 
-    val generationTimestamp = Instant.now().toEpochMilli
-    val recommendations = LoadData.llrRecommendations(
-      recommPath = params.recommPath,
-      generationTimestamp = Some(generationTimestamp),
-      userIdMappingPath = params.userIdMappingPath,
-      itemIdMappingPath = params.itemIdMappingPath,
-      spark
-    )
-
-    OracHttpClient.uploadRecommendation(parameters = parameters, recommendations = recommendations)
-      .collect()
-
-    OracHttpClient.deleteRecommendations(parameters = parameters,
-      from = Some(0), to = Some(generationTimestamp))
+    val res = OracHttpClient.downloadItems(parameters = parameters, filePath = params.output)
+    Await.result(res, Duration.Inf)
   }
 
   def main(args: Array[String]) {
     val defaultParams = Params()
-    val parser = new OptionParser[Params]("Download actions from orac") {
-      head("download the actions from orac into a file with json entities")
+    val parser = new OptionParser[Params]("Download items from orac") {
+      head("download the items from orac into a file with json entities")
       help("help").text("prints this usage text")
       opt[String]("host")
         .text(s"full hostname string: with protocol and port" +
@@ -62,18 +41,6 @@ object UploadLLRRecommendations {
         .text(s"the index name" +
           s"  default: ${defaultParams.indexName}")
         .action((x, c) => c.copy(indexName = x))
-      opt[String]("recommPath")
-        .text(s"folder with recommendations" +
-          s"  default: ${defaultParams.recommPath}")
-        .action((x, c) => c.copy(recommPath = x))
-      opt[String]("userIdMappingPath")
-        .text(s"folder with userId => long mapping" +
-          s"  default: ${defaultParams.userIdMappingPath}")
-        .action((x, c) => c.copy(userIdMappingPath = x))
-      opt[String]("itemIdMappingPath")
-        .text(s"folder with itemId => long mapping" +
-          s"  default: ${defaultParams.itemIdMappingPath}")
-        .action((x, c) => c.copy(itemIdMappingPath = x))
       opt[String]("username")
         .text(s"the orac user name" +
           s"  default: ${defaultParams.username}")

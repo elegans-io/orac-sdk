@@ -1,7 +1,6 @@
 package io.elegans.oracsdk.commands
 
-import io.elegans.oracsdk.load.LoadData
-import io.elegans.oracsdk.store.SaveToCsv
+import io.elegans.oracsdk.load.{LoadData, SaveToCsv}
 import io.elegans.oracsdk.transform.Transformer
 import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
@@ -31,7 +30,8 @@ object ActionsToCoOccurrenceInput {
   def main(args: Array[String]) {
     val defaultParams = Params()
     val parser = new OptionParser[Params]("Actions to co-occurrence input") {
-      head("create an input dataset suitable for the co-occurrence algorithm")
+      head("create an input dataset suitable for the co-occurrence algorithm, " +
+        "takes the items id directly from actions")
       help("help").text("prints this usage text")
       opt[String]("input")
         .text(s"the input file or directory" +

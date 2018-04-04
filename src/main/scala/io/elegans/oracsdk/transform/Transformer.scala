@@ -63,7 +63,7 @@ object Transformer extends java.io.Serializable {
                  replace:Option[Int]=None): RDD[Array[String]] = {
 
     assert(input.first.length >= columns.max + 1)
-    val new_input = input.map{x => x :+ columns.map(y => x(y)).mkString(" ")}
+    val new_input = input.map{ x => x :+ columns.map(y => x(y)).mkString(" ") }
 
     if (!tokenize) {
       // token => rankid
@@ -111,21 +111,18 @@ object Transformer extends java.io.Serializable {
     */
   def rankIdValueMap(input: RDD[Array[String]], rankIdColumn: Int, value: Int,
                      mode: String, reverse: Boolean=false): Map[String, String] = {
-
-    if (!reverse) {
-      if (mode == "random") {
-        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2.toList(0))).collect.toMap
-      } else if (mode == "popularity") {
-        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2))
-          .collect.map(x => (x._1, x._2.toList.groupBy(identity)
-          .mapValues(_.size).toSeq.sortBy(-_._2).toList(0)._1)).toMap
-      } else throw new IllegalArgumentException("mode can only be 'random' or 'popularity")
-
-    } else {
-      input.map(x => (x(value), x(rankIdColumn))).collect.toMap
+    reverse match {
+      case true =>
+        input.map(x => (x(value), x(rankIdColumn))).collect.toMap
+      case _ =>
+        if (mode == "random") {
+          input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2.toList.head)).collect.toMap
+        } else if (mode == "popularity") {
+          input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2))
+            .collect.map(x => (x._1, x._2.toList.groupBy(identity)
+            .mapValues(_.size).toSeq.sortBy(-_._2).toList.head._1)).toMap
+        } else throw new IllegalArgumentException("mode can only be 'random' or 'popularity")
     }
-
-
   }
 
   /** Join two RDD[Array[String]]
@@ -184,4 +181,77 @@ object Transformer extends java.io.Serializable {
 
     (userIdColumn, itemIdColumn, convertedEntries)
   }
+
+  /** join actions and items and produce a tuple ready for the rankId generation
+    *
+    * @param actionsEntities RDD of Actions
+    * @param itemsEntities RDD of Items
+    * @param spark spark session
+    * @param defPref default score value
+    * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
+    */
+  def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
+             spark: SparkSession, defPref: Double = 0.0d): RDD[(String, String, String, String, String)] = {
+    import spark.implicits._
+
+    actionsEntities.map(record => (record.user_id, record.item_id, record.score.getOrElse(defPref)))
+      .toDS.createOrReplaceTempView("actions")
+
+    itemsEntities.map { case (record) =>
+      val stringProperties = record.props match {
+        case Some(p) =>
+          p.string match {
+            case Some(stringProps) =>
+              stringProps.map(x => (x.key, x.value)).toMap
+            case _ => Map.empty[String, String]
+          }
+        case _ => Map.empty[String, String]
+      }
+      (
+        stringProperties.getOrElse("title", record.name),
+        stringProperties.getOrElse("author", "unknown")
+      )
+    }.toDS.createOrReplaceTempView("items")
+
+    val joinedItemActions = spark.sql("select actions._1, actions._2, actions._3, " +
+      "items._1, items._2 from actions join items " +
+      "where actions._1 = items._1").rdd
+      .map { case (entry) =>
+        Array(
+          entry(0).asInstanceOf[String], // userId
+          entry(1).asInstanceOf[String], // itemId
+          entry(2).asInstanceOf[String], // score
+          entry(3).asInstanceOf[String], // title
+          entry(4).asInstanceOf[String]  // author
+        )
+      }
+
+    /* joinedWithRankId = RDD[(userId, itemId, score, rankId)] */
+    val joinedWithItemRankId = Transformer.makeRankId(input = joinedItemActions, columns = Seq(3,4),
+      tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
+
+    /* user_id => numerical_id */
+    val userIdColumn = joinedWithItemRankId.map(x => x._1).distinct.zipWithIndex
+
+    /* create joinedWithItemRankId view */
+    joinedWithItemRankId.toDS.createOrReplaceTempView("rankedIdItems")
+
+    /* userId => numericalUserId */
+    userIdColumn.toDS.createOrReplaceTempView("userId")
+
+    /* join itemsWithRankId with numericalUserId*/
+    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._1, rankedIdItems._3, rankedIdItems._2" +
+      "from rankedIdItems join userId" +
+      "where rankedIdItems._1 = userId._1").rdd
+      .map{ case(entry) =>
+        (
+          entry(0).asInstanceOf[String], // userId
+          entry(1).asInstanceOf[String], // numericalUserId
+          entry(2).asInstanceOf[String], // itemId
+          entry(3).asInstanceOf[String], // itemRankId
+          entry(4).asInstanceOf[String] // score
+        )
+      }
+  }
+
 }
