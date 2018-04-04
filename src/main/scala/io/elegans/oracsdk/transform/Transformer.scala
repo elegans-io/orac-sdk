@@ -248,7 +248,7 @@ object Transformer extends java.io.Serializable {
 
     println("INFO: preparing (userId, numericalUserId, itemId, itemRankId, score)")
     /* join itemsWithRankId with numericalUserId*/
-    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._3, rankedIdItems._4 " +
+    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._4, rankedIdItems._3 " +
       "from rankedIdItems join userId " +
       "where rankedIdItems._1 = userId._1").rdd
       .map{ case(entry) =>
