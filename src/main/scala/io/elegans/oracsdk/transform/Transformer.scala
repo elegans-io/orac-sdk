@@ -106,7 +106,8 @@ object Transformer extends java.io.Serializable {
     * @param input the RDD with fields, of which one is rankId
     * @param rankIdColumn where is the rankId
     * @param value column to be used as value
-    * @param mode "random", "popularity": gets the most popular of the values for each rankID (eg most popular ISBN for books)
+    * @param mode "random", "popularity": gets the most popular of the values for
+    *             each rankID (eg most popular ISBN for books)
     * @param reverse true produces a map(value -> rankId)
     */
   def rankIdValueMap(input: RDD[Array[String]], rankIdColumn: Int, value: Int,
