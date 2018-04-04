@@ -17,8 +17,9 @@ object Transformer extends java.io.Serializable {
     .filter(_.matches("""[a-zA-Z_]\w*"""))
     .map(_.toLowerCase).mkString(" ")
 
-  def tokenizeToRankID(input:  RDD[List[String]], stopWords: Set[String]):   //It would be easier with an Array, but we cannot
-  RDD[(String, String)]  = {
+  def tokenizeToRankID(input:  RDD[List[String]],
+                       stopWords: Set[String]):  //It would be easier with an Array, but we cannot
+  RDD[(String, String)] = {
 
     val word_occ_map_all = input.flatMap(identity).filter(x => ! stopWords.contains(x)).map((_, 1))
       .reduceByKey((a, b) => a + b)
@@ -112,17 +113,16 @@ object Transformer extends java.io.Serializable {
     */
   def rankIdValueMap(input: RDD[Array[String]], rankIdColumn: Int, value: Int,
                      mode: String, reverse: Boolean=false): Map[String, String] = {
-    reverse match {
-      case true =>
-        input.map(x => (x(value), x(rankIdColumn))).collect.toMap
-      case _ =>
-        if (mode == "random") {
-          input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2.toList.head)).collect.toMap
-        } else if (mode == "popularity") {
-          input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2))
-            .collect.map(x => (x._1, x._2.toList.groupBy(identity)
-            .mapValues(_.size).toSeq.sortBy(-_._2).toList.head._1)).toMap
-        } else throw new IllegalArgumentException("mode can only be 'random' or 'popularity")
+    if(reverse) {
+      input.map(x => (x(value), x(rankIdColumn))).collect.toMap
+    } else {
+      if (mode == "random") {
+        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2.toList.head)).collect.toMap
+      } else if (mode == "popularity") {
+        input.map(x => (x(rankIdColumn), x(value))).groupByKey.map(x => (x._1, x._2))
+          .collect.map(x => (x._1, x._2.toList.groupBy(identity)
+          .mapValues(_.size).toSeq.sortBy(-_._2).toList.head._1)).toMap
+      } else throw new IllegalArgumentException("mode can only be 'random' or 'popularity")
     }
   }
 
@@ -192,7 +192,7 @@ object Transformer extends java.io.Serializable {
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
   def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-             spark: SparkSession, defPref: Double = 0.0d): RDD[(String, String, String, String, String)] = {
+                                      spark: SparkSession, defPref: Double = 0.0d): RDD[(String, String, String, String, String)] = {
     import spark.implicits._
 
     actionsEntities.map(record => (record.user_id, record.item_id, record.score.getOrElse(defPref)))
@@ -208,23 +208,19 @@ object Transformer extends java.io.Serializable {
           }
         case _ => Map.empty[String, String]
       }
-      (
-        stringProperties.getOrElse("title", record.name),
-        stringProperties.getOrElse("author", "unknown")
-      )
+      (stringProperties.getOrElse("title", record.name),
+        stringProperties.getOrElse("author", "unknown"))
     }.toDS.createOrReplaceTempView("items")
 
     val joinedItemActions = spark.sql("select actions._1, actions._2, actions._3, " +
       "items._1, items._2 from actions join items " +
       "where actions._1 = items._1").rdd
       .map { case (entry) =>
-        Array(
-          entry(0).asInstanceOf[String], // userId
+        Array(entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // itemId
           entry(2).asInstanceOf[String], // score
           entry(3).asInstanceOf[String], // title
-          entry(4).asInstanceOf[String]  // author
-        )
+          entry(4).asInstanceOf[String])  // author
       }
 
     /* joinedWithRankId = RDD[(userId, itemId, score, rankId)] */
@@ -245,13 +241,11 @@ object Transformer extends java.io.Serializable {
       "from rankedIdItems join userId" +
       "where rankedIdItems._1 = userId._1").rdd
       .map{ case(entry) =>
-        (
-          entry(0).asInstanceOf[String], // userId
+        (entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // numericalUserId
           entry(2).asInstanceOf[String], // itemId
           entry(3).asInstanceOf[String], // itemRankId
-          entry(4).asInstanceOf[String] // score
-        )
+          entry(4).asInstanceOf[String]) // score
       }
   }
 
