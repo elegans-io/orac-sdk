@@ -215,13 +215,14 @@ object Transformer extends java.io.Serializable {
           }
         case _ => Map.empty[String, String]
       }
-      (stringProperties.getOrElse("title", record.name),
+      (record.id,
+        stringProperties.getOrElse("title", record.name),
         stringProperties.getOrElse("author", "unknown"))
     }.toDS.createOrReplaceTempView("items")
 
     val joinedItemActions = spark.sql("select actions._1, actions._2, actions._3, " +
-      "items._1, items._2 from actions join items " +
-      "where actions._1 = items._1").rdd
+      "items._1, items._2, items._3 from actions join items " +
+      "where actions._2 = items._1").rdd
       .map { case (entry) =>
         Array(entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // itemId
