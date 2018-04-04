@@ -245,8 +245,8 @@ object Transformer extends java.io.Serializable {
     userIdColumn.toDS.createOrReplaceTempView("userId")
 
     /* join itemsWithRankId with numericalUserId*/
-    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._1, rankedIdItems._3, rankedIdItems._2" +
-      "from rankedIdItems join userId" +
+    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._1, rankedIdItems._3, rankedIdItems._2 " +
+      "from rankedIdItems join userId " +
       "where rankedIdItems._1 = userId._1").rdd
       .map{ case(entry) =>
         (entry(0).asInstanceOf[String], // userId
