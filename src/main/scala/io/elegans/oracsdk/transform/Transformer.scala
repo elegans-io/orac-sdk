@@ -226,15 +226,17 @@ object Transformer extends java.io.Serializable {
       .map { case (entry) =>
         Array(entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // itemId
-          entry(2).asInstanceOf[String], // score
+          entry(2).asInstanceOf[Double].toString, // score
           entry(3).asInstanceOf[String], // title
           entry(4).asInstanceOf[String])  // author
       }
 
+    println("INFO: preparing items joined with rankID")
     /* joinedWithRankId = RDD[(userId, itemId, score, rankId)] */
     val joinedWithItemRankId = Transformer.makeRankId(input = joinedItemActions, columns = Seq(3,4),
       tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
 
+    println("INFO: preparing userId -> numericalUserId")
     /* user_id => numerical_id */
     val userIdColumn = joinedWithItemRankId.map(x => x._1).distinct.zipWithIndex
 
@@ -244,6 +246,7 @@ object Transformer extends java.io.Serializable {
     /* userId => numericalUserId */
     userIdColumn.toDS.createOrReplaceTempView("userId")
 
+    println("INFO: preparing (userId, numericalUserId, itemId, itemRankId, score)")
     /* join itemsWithRankId with numericalUserId*/
     spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._1, rankedIdItems._3, rankedIdItems._2 " +
       "from rankedIdItems join userId " +
