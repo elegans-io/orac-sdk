@@ -75,7 +75,8 @@ object ActionsItemsToCoOccurrenceInput {
     joinedEntries.map(item => item._3 + "," + item._4).saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
 
     /* save actions for co-occurrence  */
-    joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5).saveAsTextFile(params.output + "/ACTIONS")
+    joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
+      .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
   }
 
   def main(args: Array[String]) {
@@ -113,7 +114,7 @@ object ActionsItemsToCoOccurrenceInput {
         .action((x, c) => c.copy(defPref = x))
       opt[String]("output")
         .text(s"the destination directory for the output: tree subfolders will be created: " +
-          s" ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +
+          s" CO_OCCURRENCE_ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +
           s"  default: ${defaultParams.output}")
         .action((x, c) => c.copy(output = x))
     }
