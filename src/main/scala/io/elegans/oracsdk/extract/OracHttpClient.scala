@@ -169,11 +169,11 @@ object OracHttpClient extends OracJsonSupport {
       val queryString = if(from.isEmpty && to.isEmpty) {
         ""
       } else if(from.isEmpty) {
-        "&to=" + to
+        "&to=" + to.get
       } else if(to.isEmpty) {
-        "&from=" + from
+        "&from=" + from.get
       } else {
-        "&from=" + from + "?to=" + to
+        "&from=" + from.get + "?to=" + to.get
       }
 
       val url = uri(httpParameters = parameters, path = "/recommendation/query" + queryString)
