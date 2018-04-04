@@ -226,7 +226,7 @@ object Transformer extends java.io.Serializable {
       .map { case (entry) =>
         Array(entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // itemId
-          entry(2).asInstanceOf[Double].toString, // score
+          entry(2).asInstanceOf[String], // score
           entry(3).asInstanceOf[String], // title
           entry(4).asInstanceOf[String])  // author
       }
@@ -253,7 +253,7 @@ object Transformer extends java.io.Serializable {
           entry(1).asInstanceOf[Long].toString, // numericalUserId
           entry(2).asInstanceOf[String], // itemId
           entry(3).asInstanceOf[String], // itemRankId
-          entry(4).asInstanceOf[Double].toString) // score
+          entry(4).asInstanceOf[String]) // score
       }
   }
 
