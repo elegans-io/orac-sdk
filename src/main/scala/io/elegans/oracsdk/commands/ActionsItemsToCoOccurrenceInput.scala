@@ -66,7 +66,7 @@ object ActionsItemsToCoOccurrenceInput {
 
     /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
     val joinedEntries = Transformer.joinActionEntityForCoOccurrence(actionsEntities = actionsEntities,
-      itemsEntities = itemsEntities, spark = spark, defPref = 2.5d)
+      itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
 
     /* save mapping: userId -> numericalUserId */
     joinedEntries.map(item => item._1 + "," + item._2).saveAsTextFile(params.output + "/USER_ID_TO_LONG")

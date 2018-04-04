@@ -1,8 +1,10 @@
 package io.elegans.oracsdk.transform
 
-import org.apache.spark.rdd.RDD
 import io.elegans.orac.entities._
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
+
+import scalaz.Scalaz._
 
 object Transformer extends java.io.Serializable {
 
@@ -157,12 +159,12 @@ object Transformer extends java.io.Serializable {
     * @return an RDD with 3 tuples
     *         ((str_user_id, long_user_id), (str_item_id, long_item_id), (long_user_id, long_item_id, score))
     */
-  def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession, defPref: Double = 0.0d):
+  def actionsToCoOccurrenceInput(input: RDD[Action], spark: SparkSession, defPref: Double = 2.5d):
   (RDD[(String, Long)], RDD[(String, Long)], RDD[(Long, Long, Double)]) = {
     val entries = input.map(entry => {
       val score: Double = entry.score match {
-        case Some(s) => s
-        case _ => 0.0d
+        case Some(s) => if(s === 0.0d) defPref else s
+        case _ => defPref
       }
       (entry.user_id, entry.item_id, score)
     })
@@ -192,11 +194,16 @@ object Transformer extends java.io.Serializable {
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
   def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-                                      spark: SparkSession, defPref: Double = 0.0d): RDD[(String, String, String, String, String)] = {
+                                      spark: SparkSession, defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
     import spark.implicits._
 
-    actionsEntities.map(record => (record.user_id, record.item_id, record.score.getOrElse(defPref)))
-      .toDS.createOrReplaceTempView("actions")
+    actionsEntities.map{case(record) =>
+      val score = record.score match {
+        case Some(s) => if(s === 0.0d) defPref else s
+        case _ => defPref
+      }
+      (record.user_id, record.item_id, score)
+    }.toDS.createOrReplaceTempView("actions")
 
     itemsEntities.map { case (record) =>
       val stringProperties = record.props match {
