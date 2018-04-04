@@ -176,7 +176,7 @@ object OracHttpClient extends OracJsonSupport {
         "&from=" + from.get + "?to=" + to.get
       }
 
-      val url = uri(httpParameters = parameters, path = "/recommendation/query" + queryString)
+      val url = uri(httpParameters = parameters, path = "/recommendation_query" + queryString)
       val credentials =
         "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
       val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
