@@ -69,10 +69,10 @@ object ActionsItemsToCoOccurrenceInput {
       itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
 
     /* save mapping: userId -> numericalUserId */
-    joinedEntries.map(item => item._1 + "," + item._2).saveAsTextFile(params.output + "/USER_ID_TO_LONG")
+    joinedEntries.map(item => item._1 + "," + item._2).distinct.saveAsTextFile(params.output + "/USER_ID_TO_LONG")
 
     /* save mapping: itemId -> rankId */
-    joinedEntries.map(item => item._3 + "," + item._4).saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
+    joinedEntries.map(item => item._3 + "," + item._4).distinct.saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
 
     /* save actions for co-occurrence  */
     joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
