@@ -163,46 +163,44 @@ object OracHttpClient extends OracJsonSupport {
     */
   def deleteRecommendations(parameters: OracConnectionParameters, from: Option[Long],
                             to: Option[Long]): Option[DeleteDocumentsResult] = {
-      val http = Http()
-      val entity = Future(HttpEntity.Empty)
 
-      val queryString = if(from.isEmpty && to.isEmpty) {
-        ""
-      } else if(from.isEmpty) {
-        "&to=" + to.get
-      } else if(to.isEmpty) {
-        "&from=" + from.get
-      } else {
-        "&from=" + from.get + "?to=" + to.get
-      }
+    val http = Http()
+    val queryString = if(from.isEmpty && to.isEmpty) {
+      ""
+    } else if(from.isEmpty) {
+      "&to=" + to.get
+    } else if(to.isEmpty) {
+      "&from=" + from.get
+    } else {
+      "&from=" + from.get + "?to=" + to.get
+    }
 
-      val url = uri(httpParameters = parameters, path = "/recommendation_query" + queryString)
-      val credentials =
-        "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
-      val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
-      val response = entity.flatMap { ent =>
-        http.singleRequest(
-          HttpRequest(
-            method = HttpMethods.DELETE,
-            uri = url,
-            headers = headers,
-            entity = ent
-          )
-        )
-      }
+    val url = uri(httpParameters = parameters, path = "/recommendation_query" + queryString)
+    val credentials =
+      "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
+    val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
+    val response = http.singleRequest(
+      HttpRequest(
+        method = HttpMethods.DELETE,
+        uri = url,
+        headers = headers,
+        entity = HttpEntity.Empty
+      )
+    )
 
     val result = Await.result(response, Duration.Inf)
     result.status match {
-      case StatusCodes.Created | StatusCodes.OK =>
+      case StatusCodes.OK =>
         Try(Await.result(Unmarshal(result.entity).to[DeleteDocumentsResult], 5.second)) match {
           case Success(resEntity) =>
             Some(resEntity)
           case Failure(e) =>
-            println("Error unmarshalling response(" + result + "): " + e.getMessage)
+            println("Error: response(" + result + "): " + e.getMessage)
             None
         }
       case _ =>
-        println("failed deleting old recommendations Message(" + result.toString() + ")")
+        println("Error: failed deleting old recommendations Message(" + result.toString() + ") StatusCode(" +
+          result.status + ")")
         None
     }
   }
