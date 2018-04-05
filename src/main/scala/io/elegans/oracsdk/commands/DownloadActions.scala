@@ -5,7 +5,7 @@ import akka.stream.ActorMaterializer
 import io.elegans.oracsdk.extract._
 import scopt.OptionParser
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
 object DownloadActions {
@@ -25,7 +25,7 @@ object DownloadActions {
       indexName = params.indexName, username = params.username, password = params.password)
 
     val res = OracHttpClient.downloadActions(parameters = parameters, filePath = params.output)
-    Await.result(res, Duration.Inf)
+    Await.result(res, 30.second)
   }
 
   def main(args: Array[String]) {

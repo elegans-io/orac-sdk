@@ -7,7 +7,7 @@ import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
 
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 
 object ActionsItemsToCoOccurrenceInput {
   private case class Params(
@@ -33,7 +33,7 @@ object ActionsItemsToCoOccurrenceInput {
       case "" =>
         val folder = params.output + "/ACTIONS"
         val response = OracHttpClient.downloadActions(parameters = parameters, filePath = folder)
-        val result = Await.result(response, Duration.Inf)
+        val result = Await.result(response, 30.second)
         if(result.wasSuccessful) {
           println("INFO: downloaded actions into " + folder)
         } else {
@@ -49,7 +49,7 @@ object ActionsItemsToCoOccurrenceInput {
       case "" =>
         val folder = params.output + "/ITEMS"
         val response = OracHttpClient.downloadItems(parameters = parameters, filePath = folder)
-        val result = Await.result(response, Duration.Inf)
+        val result = Await.result(response, 30.second)
           if(result.wasSuccessful) {
           println("INFO: downloaded items into " + folder)
         } else {

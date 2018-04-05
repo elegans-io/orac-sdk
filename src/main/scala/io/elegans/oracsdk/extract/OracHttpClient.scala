@@ -22,7 +22,7 @@ import io.elegans.orac.serializers.OracJsonSupport
 import org.apache.spark.rdd.RDD
 
 import scala.collection.immutable
-import scala.concurrent.duration.{Duration, _}
+import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -137,7 +137,7 @@ object OracHttpClient extends OracJsonSupport {
         )
       }
 
-      val result = Await.result(response, Duration.Inf)
+      val result = Await.result(response, 30.second)
       result.status match {
         case StatusCodes.Created | StatusCodes.OK =>
           Try(Await.result(Unmarshal(result.entity).to[IndexDocumentResult], 5.second)) match {
@@ -188,7 +188,7 @@ object OracHttpClient extends OracJsonSupport {
       )
     )
 
-    val result = Await.result(response, Duration.Inf)
+    val result = Await.result(response, 30.second)
     result.status match {
       case StatusCodes.OK =>
         Try(Await.result(Unmarshal(result.entity).to[DeleteDocumentsResult], 5.second)) match {
