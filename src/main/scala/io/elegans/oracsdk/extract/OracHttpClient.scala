@@ -200,7 +200,7 @@ object OracHttpClient extends OracJsonSupport {
         }
       case _ =>
         println("Error: failed deleting old recommendations Message(" + result.toString() + ") StatusCode(" +
-          result.status + ")")
+          result.status + ") Url(" + url + ")")
         None
     }
   }
