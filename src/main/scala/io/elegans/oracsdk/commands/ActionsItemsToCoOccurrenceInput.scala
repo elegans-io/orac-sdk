@@ -33,7 +33,7 @@ object ActionsItemsToCoOccurrenceInput {
       case "" =>
         val folder = params.output + "/ACTIONS"
         val response = OracHttpClient.downloadActions(parameters = parameters, filePath = folder)
-        val result = Await.result(response, 30.second)
+        val result = Await.result(response, Duration.Inf)
         if(result.wasSuccessful) {
           println("INFO: downloaded actions into " + folder)
         } else {
@@ -49,7 +49,7 @@ object ActionsItemsToCoOccurrenceInput {
       case "" =>
         val folder = params.output + "/ITEMS"
         val response = OracHttpClient.downloadItems(parameters = parameters, filePath = folder)
-        val result = Await.result(response, 30.second)
+        val result = Await.result(response, Duration.Inf)
           if(result.wasSuccessful) {
           println("INFO: downloaded items into " + folder)
         } else {

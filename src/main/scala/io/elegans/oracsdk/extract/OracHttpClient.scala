@@ -188,7 +188,7 @@ object OracHttpClient extends OracJsonSupport {
       )
     )
 
-    val result = Await.result(response, 30.second)
+    val result = Await.result(response, 3600.second)
     result.status match {
       case StatusCodes.OK =>
         Try(Await.result(Unmarshal(result.entity).to[DeleteDocumentsResult], 5.second)) match {
