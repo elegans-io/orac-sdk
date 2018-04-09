@@ -133,7 +133,6 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
         (entry(0).asInstanceOf[String], entry(1).asInstanceOf[String], entry(2).asInstanceOf[Double])).rdd
       .map(recomm => {
         Recommendation(
-          id = None,
           user_id = recomm._1,
           item_id = recomm._2,
           name = "rate",

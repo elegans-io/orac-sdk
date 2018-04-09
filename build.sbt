@@ -22,7 +22,7 @@ libraryDependencies ++= {
   val AkkaHttpVersion   = "10.1.0"
   val ESClientVersion	= "6.2.3"
   val SparkVersion = "2.2.1"
-  val OracEntitiesVersion = "1.0.1"
+  val OracEntitiesVersion = "1.0.2"
   val ScoptVersion	= "3.7.0"
   Seq(
     "com.github.scopt" %% "scopt" % ScoptVersion,
