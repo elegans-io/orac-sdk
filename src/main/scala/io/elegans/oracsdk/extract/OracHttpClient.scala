@@ -60,10 +60,9 @@ object OracHttpClient extends OracJsonSupport {
                                     headerValues: Map[String, String] = Map.empty[String, String],
                                     default: (String, String) = ("application", "json")):
   immutable.Seq[HttpHeader] = {
-    val headers = headerValues.map { case (key, value) =>
+    headerValues.map { case (key, value) =>
       RawHeader(key, value)
     }.toSeq ++ Seq(RawHeader(default._1, default._2))
-    headers.to[immutable.Seq]
   }
 
   /** execute an http stream call and write the result on file
