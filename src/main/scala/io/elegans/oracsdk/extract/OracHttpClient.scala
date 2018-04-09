@@ -149,7 +149,8 @@ object OracHttpClient extends OracJsonSupport {
               None
           }
         case _ =>
-          println("Error indexing entry(" + rec + ") Message(" + result.toString() + ")")
+          println("Error indexing entry(" + rec + ") Message(" + result.toString() + ") StatusCode(" +
+            result.status + ")")
           None
       }
     }.filter(_.nonEmpty)
