@@ -62,7 +62,7 @@ object OracHttpClient extends OracJsonSupport {
   immutable.Seq[HttpHeader] = {
     val headers = headerValues.map { case (key, value) =>
       RawHeader(key, value)
-    } ++ Seq(RawHeader(default._1, default._2))
+    }.toSeq ++ Seq(RawHeader(default._1, default._2))
     headers.to[immutable.Seq]
   }
 
@@ -150,7 +150,7 @@ object OracHttpClient extends OracJsonSupport {
           }
         case _ =>
           println("Error indexing entry(" + rec + ") Message(" + result.toString() + ") StatusCode(" +
-            result.status + ")")
+            result.status + ") Header(" + headers + ")")
           None
       }
     }.filter(_.nonEmpty)
