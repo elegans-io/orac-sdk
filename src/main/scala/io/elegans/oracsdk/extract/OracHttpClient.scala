@@ -62,7 +62,7 @@ object OracHttpClient extends OracJsonSupport {
   immutable.Seq[HttpHeader] = {
     headerValues.map { case (key, value) =>
       RawHeader(key, value)
-    }.toSeq ++ Seq(RawHeader(default._1, default._2))
+    }.toSeq.to[immutable.Seq] ++ immutable.Seq(RawHeader(default._1, default._2))
   }
 
   /** execute an http stream call and write the result on file
