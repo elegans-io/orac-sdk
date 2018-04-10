@@ -25,6 +25,8 @@ object ActionsToCoOccurrenceInput {
       outputFolder = params.output + "/USER_ID_TO_LONG")
     SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
       outputFolder = params.output + "/ITEM_ID_TO_LONG")
+
+    sc.stop()
     spark.stop()
   }
 

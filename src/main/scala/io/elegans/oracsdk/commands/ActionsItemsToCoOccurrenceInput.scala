@@ -78,6 +78,7 @@ object ActionsItemsToCoOccurrenceInput {
     joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
       .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
 
+    sc.stop()
     spark.stop()
   }
 
