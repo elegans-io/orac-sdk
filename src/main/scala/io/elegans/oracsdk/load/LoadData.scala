@@ -35,7 +35,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
     * @return : an RDD of Action objects
     */
   def actions(path: String, sc: SparkContext): RDD[Action] = {
-    val rdd: RDD[Action] = sc.textFile(path).map(_.trim).map(item => {
+    val rdd: RDD[Action] = sc.wholeTextFiles(path).map(_._2).map(_.trim).map(item => {
       Await.ready(Unmarshal(item).to[Action], 2.seconds).value
         .getOrElse(Failure(throw LoadDataException("Empty result unmarshalling entity")))
     }).map {
@@ -52,7 +52,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
     * @return : an RDD of OracUser objects
     */
   def oracUsers(path: String, sc: SparkContext): RDD[OracUser] = {
-    val rdd: RDD[OracUser] = sc.textFile(path).map(_.trim).map(item => {
+    val rdd: RDD[OracUser] = sc.wholeTextFiles(path).map(_._2).map(_.trim).map(item => {
       Await.ready(Unmarshal(item).to[OracUser], 2.seconds).value
         .getOrElse(Failure(throw LoadDataException("Empty result unmarshalling entity")))
     }).map {
@@ -69,7 +69,7 @@ object LoadData extends OracJsonSupport with java.io.Serializable {
     * @return : an RDD of Item objects
     */
   def items(path: String, sc: SparkContext): RDD[Item] = {
-    val rdd: RDD[Item] = sc.textFile(path).map(_.trim).map(item => {
+    val rdd: RDD[Item] = sc.wholeTextFiles(path).map(_._2).map(_.trim).map(item => {
       Await.ready(Unmarshal(item).to[Item], 2.seconds).value
         .getOrElse(Failure(throw LoadDataException("Empty result unmarshalling entity")))
     }).map {
