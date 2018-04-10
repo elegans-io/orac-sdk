@@ -31,27 +31,29 @@ object UploadLLRRecommendations {
     val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
-    val parameters = OracConnectionParameters(host=params.host,
-      indexName = params.indexName, username = params.username, password = params.password)
+    try {
+      val parameters = OracConnectionParameters(host=params.host,
+        indexName = params.indexName, username = params.username, password = params.password)
 
-    val generationTimestamp = Instant.now().toEpochMilli
-    val recommendations = LoadData.llrRecommendations(
-      recommPath = params.recommPath,
-      generationTimestamp = Some(generationTimestamp),
-      userIdMappingPath = params.userIdMappingPath,
-      itemIdMappingPath = params.itemIdMappingPath,
-      spark
-    )
+      val generationTimestamp = Instant.now().toEpochMilli
+      val recommendations = LoadData.llrRecommendations(
+        recommPath = params.recommPath,
+        generationTimestamp = Some(generationTimestamp),
+        userIdMappingPath = params.userIdMappingPath,
+        itemIdMappingPath = params.itemIdMappingPath,
+        spark
+      )
 
-    OracHttpClient.uploadRecommendation(parameters = parameters, recommendations = recommendations)
-      .collect()
+      OracHttpClient.uploadRecommendation(parameters = parameters, recommendations = recommendations)
+        .collect()
 
-    OracHttpClient.deleteRecommendations(parameters = parameters,
-      from = Some(0), to = Some(generationTimestamp))
+      OracHttpClient.deleteRecommendations(parameters = parameters,
+        from = Some(0), to = Some(generationTimestamp))
 
-    println("Info: terminated task : " + appName)
-    sc.stop()
-    spark.stop()
+      println("Info: terminated task : " + appName)
+    } finally {
+      spark.stop()
+    }
   }
 
   def main(args: Array[String]) {

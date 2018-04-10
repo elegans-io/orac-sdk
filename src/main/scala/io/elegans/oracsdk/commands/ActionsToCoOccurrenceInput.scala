@@ -17,19 +17,20 @@ object ActionsToCoOccurrenceInput {
     val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
-    val actionsEntities = LoadData.actions(path = params.input, sc = sc)
+    try {
+      val actionsEntities = LoadData.actions(path = params.input, sc = sc)
 
-    val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark,
-      defPref = params.defPref)
-    SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "/ACTIONS")
-    SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._1,
-      outputFolder = params.output + "/USER_ID_TO_LONG")
-    SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
-      outputFolder = params.output + "/ITEM_ID_TO_LONG")
-
-    println("Info: terminated task : " + appName)
-    sc.stop()
-    spark.stop()
+      val coOccurrenceInputData = Transformer.actionsToCoOccurrenceInput(input = actionsEntities, spark = spark,
+        defPref = params.defPref)
+      SaveToCsv.saveCoOccurrenceInput(input = coOccurrenceInputData._3, outputFolder = params.output + "/ACTIONS")
+      SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._1,
+        outputFolder = params.output + "/USER_ID_TO_LONG")
+      SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
+        outputFolder = params.output + "/ITEM_ID_TO_LONG")
+    } finally {
+      println("Info: terminated task : " + appName)
+      spark.stop()
+    }
   }
 
   def main(args: Array[String]) {

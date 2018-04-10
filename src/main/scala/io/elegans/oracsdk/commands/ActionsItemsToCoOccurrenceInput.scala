@@ -26,62 +26,63 @@ object ActionsItemsToCoOccurrenceInput {
     val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
-    val parameters = OracConnectionParameters(host=params.host,
-      indexName = params.indexName, username = params.username, password = params.password)
+    try {
+      val parameters = OracConnectionParameters(host = params.host,
+        indexName = params.indexName, username = params.username, password = params.password)
 
-    /* downloading actions and return the path */
-    val actionsFolder = params.actions match {
-      case "" =>
-        val folder = params.output + "/ACTIONS"
-        val response = OracHttpClient.downloadActions(parameters = parameters, filePath = folder)
-        val result = Await.result(response, Duration.Inf)
-        if(result.wasSuccessful) {
-          println("INFO: downloaded actions into " + folder)
-        } else {
-          println("ERROR: downloading action" + result.getError.getMessage)
-          sys.exit(10)
-        }
-        folder
-      case _ => params.actions
+      /* downloading actions and return the path */
+      val actionsFolder = params.actions match {
+        case "" =>
+          val folder = params.output + "/ACTIONS"
+          val response = OracHttpClient.downloadActions(parameters = parameters, filePath = folder)
+          val result = Await.result(response, Duration.Inf)
+          if (result.wasSuccessful) {
+            println("INFO: downloaded actions into " + folder)
+          } else {
+            println("ERROR: downloading action" + result.getError.getMessage)
+            sys.exit(10)
+          }
+          folder
+        case _ => params.actions
+      }
+
+      /* downloading item and return the path */
+      val itemsFolder = params.actions match {
+        case "" =>
+          val folder = params.output + "/ITEMS"
+          val response = OracHttpClient.downloadItems(parameters = parameters, filePath = folder)
+          val result = Await.result(response, Duration.Inf)
+          if (result.wasSuccessful) {
+            println("INFO: downloaded items into " + folder)
+          } else {
+            println("ERROR: downloading items" + result.getError.getMessage)
+            sys.exit(11)
+          }
+          folder
+        case _ => params.items
+      }
+
+      /* load actions and items */
+      val actionsEntities = LoadData.actions(path = actionsFolder, sc = sc)
+      val itemsEntities = LoadData.items(path = itemsFolder, sc = sc)
+
+      /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
+      val joinedEntries = Transformer.joinActionEntityForCoOccurrence(actionsEntities = actionsEntities,
+        itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
+
+      /* save mapping: userId -> numericalUserId */
+      joinedEntries.map(item => item._1 + "," + item._2).distinct.saveAsTextFile(params.output + "/USER_ID_TO_LONG")
+
+      /* save mapping: itemId -> rankId */
+      joinedEntries.map(item => item._3 + "," + item._4).distinct.saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
+
+      /* save actions for co-occurrence  */
+      joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
+        .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
+    } finally {
+      println("Info: terminated task : " + appName)
+      spark.stop()
     }
-
-    /* downloading item and return the path */
-    val itemsFolder = params.actions match {
-      case "" =>
-        val folder = params.output + "/ITEMS"
-        val response = OracHttpClient.downloadItems(parameters = parameters, filePath = folder)
-        val result = Await.result(response, Duration.Inf)
-          if(result.wasSuccessful) {
-          println("INFO: downloaded items into " + folder)
-        } else {
-          println("ERROR: downloading items" + result.getError.getMessage)
-          sys.exit(11)
-        }
-        folder
-      case _ => params.items
-    }
-
-    /* load actions and items */
-    val actionsEntities = LoadData.actions(path = actionsFolder, sc = sc)
-    val itemsEntities = LoadData.items(path = itemsFolder, sc = sc)
-
-    /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
-    val joinedEntries = Transformer.joinActionEntityForCoOccurrence(actionsEntities = actionsEntities,
-      itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
-
-    /* save mapping: userId -> numericalUserId */
-    joinedEntries.map(item => item._1 + "," + item._2).distinct.saveAsTextFile(params.output + "/USER_ID_TO_LONG")
-
-    /* save mapping: itemId -> rankId */
-    joinedEntries.map(item => item._3 + "," + item._4).distinct.saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
-
-    /* save actions for co-occurrence  */
-    joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
-      .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
-
-    println("Info: terminated task : " + appName)
-    sc.stop()
-    spark.stop()
   }
 
   def main(args: Array[String]) {
