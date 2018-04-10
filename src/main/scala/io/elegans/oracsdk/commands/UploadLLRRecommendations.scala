@@ -47,6 +47,7 @@ object UploadLLRRecommendations {
 
     OracHttpClient.deleteRecommendations(parameters = parameters,
       from = Some(0), to = Some(generationTimestamp))
+    spark.stop()
   }
 
   def main(args: Array[String]) {

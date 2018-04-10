@@ -77,6 +77,8 @@ object ActionsItemsToCoOccurrenceInput {
     /* save actions for co-occurrence  */
     joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
       .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
+
+    spark.stop()
   }
 
   def main(args: Array[String]) {
