@@ -51,7 +51,12 @@ object UploadLLRRecommendations {
         from = Some(0), to = Some(generationTimestamp))
 
       println("Info: terminated task : " + appName)
+    } catch {
+      case e: Exception =>
+        println("Info: failed task : " + appName + " : " + e.getMessage)
+        spark.stop()
     } finally {
+      println("Info: successfully terminated task : " + appName)
       spark.stop()
     }
   }
