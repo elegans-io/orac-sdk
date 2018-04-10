@@ -13,7 +13,8 @@ object ActionsToCoOccurrenceInput {
                            )
 
   private def executeTask(params: Params): Unit = {
-    val spark = SparkSession.builder().appName("ActionsToCoOccurrenceInput").getOrCreate()
+    val appName = "ActionsToCoOccurrenceInput"
+    val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
     val actionsEntities = LoadData.actions(path = params.input, sc = sc)
@@ -26,6 +27,7 @@ object ActionsToCoOccurrenceInput {
     SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
       outputFolder = params.output + "/ITEM_ID_TO_LONG")
 
+    println("Info: terminated task : " + appName)
     sc.stop()
     spark.stop()
   }

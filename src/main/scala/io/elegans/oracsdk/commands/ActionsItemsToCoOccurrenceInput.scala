@@ -22,7 +22,8 @@ object ActionsItemsToCoOccurrenceInput {
                            )
 
   private def executeTask(params: Params): Unit = {
-    val spark = SparkSession.builder().appName("ActionsItemsToCoOccurrenceInput").getOrCreate()
+    val appName = "ActionsItemsToCoOccurrenceInput"
+    val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
     val parameters = OracConnectionParameters(host=params.host,
@@ -78,6 +79,7 @@ object ActionsItemsToCoOccurrenceInput {
     joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
       .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
 
+    println("Info: terminated task : " + appName)
     sc.stop()
     spark.stop()
   }

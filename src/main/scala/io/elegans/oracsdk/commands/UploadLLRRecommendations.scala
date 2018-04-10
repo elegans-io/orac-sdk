@@ -27,7 +27,8 @@ object UploadLLRRecommendations {
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     implicit val executionContext: ExecutionContextExecutor = system.dispatcher
 
-    val spark = SparkSession.builder().appName("UploadLLRRecommendations").getOrCreate()
+    val appName = "UploadLLRRecommendations"
+    val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
     val parameters = OracConnectionParameters(host=params.host,
@@ -47,6 +48,8 @@ object UploadLLRRecommendations {
 
     OracHttpClient.deleteRecommendations(parameters = parameters,
       from = Some(0), to = Some(generationTimestamp))
+
+    println("Info: terminated task : " + appName)
     sc.stop()
     spark.stop()
   }
