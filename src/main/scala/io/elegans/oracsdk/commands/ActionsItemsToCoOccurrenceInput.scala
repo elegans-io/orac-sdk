@@ -63,20 +63,27 @@ object ActionsItemsToCoOccurrenceInput {
       }
 
       /* load actions and items */
+      println("INFO: loading actions")
       val actionsEntities = LoadData.actions(path = actionsFolder, sc = sc)
+
+      println("INFO: loading items")
       val itemsEntities = LoadData.items(path = itemsFolder, sc = sc)
 
       /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
+      println("INFO: join actions with items")
       val joinedEntries = Transformer.joinActionEntityForCoOccurrence(actionsEntities = actionsEntities,
         itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
 
       /* save mapping: userId -> numericalUserId */
+      println("INFO: saving userId -> numericalUserId mapping")
       joinedEntries.map(item => item._1 + "," + item._2).distinct.saveAsTextFile(params.output + "/USER_ID_TO_LONG")
 
       /* save mapping: itemId -> rankId */
+      println("INFO: saving itemId -> rankId mapping")
       joinedEntries.map(item => item._3 + "," + item._4).distinct.saveAsTextFile(params.output + "/ITEM_ID_TO_LONG")
 
       /* save actions for co-occurrence  */
+      println("INFO: saving actions joined with items")
       joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
         .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
 
