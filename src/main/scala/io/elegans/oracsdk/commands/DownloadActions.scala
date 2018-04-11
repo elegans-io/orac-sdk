@@ -26,7 +26,8 @@ object DownloadActions {
     val parameters = OracConnectionParameters(host=params.host,
       indexName = params.indexName, username = params.username, password = params.password)
 
-    val res = OracHttpClient.downloadActions(parameters = parameters, filePath = params.output)
+    val res = OracHttpClient.downloadActions(parameters = parameters, filePath = params.output,
+      from = Some(params.from), to = Some(params.to))
     Await.result(res, Duration.Inf)
   }
 
