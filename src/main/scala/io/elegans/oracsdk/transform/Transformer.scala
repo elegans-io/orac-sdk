@@ -136,7 +136,6 @@ object Transformer extends java.io.Serializable {
     *
     * If !replace append the result
     */
-
   def join(input: RDD[Array[String]], input_column: Int,
            table: RDD[Array[String]], key_column: Int, value_column: Int,
            replace: Boolean
@@ -178,9 +177,9 @@ object Transformer extends java.io.Serializable {
     itemIdColumn.toDS.createOrReplaceTempView("itemId")
     entries.toDS.createOrReplaceTempView("entries")
     val convertedEntries = spark.sql("SELECT userId._2, itemId._2, entries._3 FROM entries LEFT OUTER JOIN userId, " +
-      "itemId where entries._1 = userId._1 AND entries._2 = itemId._1").rdd
+      "itemId WHERE entries._1 = userId._1 AND entries._2 = itemId._1").rdd
       .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
-      .map(entry => (entry._1, entry._2, if(entry._3 == 0) defPref else entry._3 ))
+      .map(entry => (entry._1, entry._2, if(entry._3 == 0) defPref else entry._3))
 
     (userIdColumn, itemIdColumn, convertedEntries)
   }
@@ -194,7 +193,8 @@ object Transformer extends java.io.Serializable {
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
   def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-                                      spark: SparkSession, defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+                                      spark: SparkSession,
+                                      defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
     import spark.implicits._
 
     actionsEntities.map{case(record) =>
@@ -215,20 +215,24 @@ object Transformer extends java.io.Serializable {
           }
         case _ => Map.empty[String, String]
       }
-      (record.id,
+      (
+        record.id,
         stringProperties.getOrElse("title", record.name),
-        stringProperties.getOrElse("author", "unknown"))
+        stringProperties.getOrElse("author", "unknown")
+      )
     }.toDS.createOrReplaceTempView("items")
 
     val joinedItemActions = spark.sql("SELECT actions._1, actions._2, actions._3, " +
       "items._1, items._2, items._3 FROM actions LEFT OUTER JOIN items " +
-      "where actions._2 = items._1").rdd
+      "WHERE actions._2 = items._1").rdd
       .map { case (entry) =>
-        Array(entry(0).asInstanceOf[String], // userId
+        Array(
+          entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[String], // itemId
           entry(2).asInstanceOf[Double].toString, // score
           entry(3).asInstanceOf[String], // title
-          entry(4).asInstanceOf[String])  // author
+          entry(4).asInstanceOf[String] // author
+        )
       }
 
     println("INFO: preparing items joined with rankID")
@@ -251,12 +255,14 @@ object Transformer extends java.io.Serializable {
     spark.sql("SELECT rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._4, rankedIdItems._3 " +
       "FROM rankedIdItems LEFT OUTER JOIN userId " +
       "WHERE rankedIdItems._1 = userId._1").rdd
-      .map{ case(entry) =>
-        (entry(0).asInstanceOf[String], // userId
+      .map { case(entry) =>
+        (
+          entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[Long].toString, // numericalUserId
           entry(2).asInstanceOf[String], // itemId
           entry(3).asInstanceOf[String], // itemRankId
-          entry(4).asInstanceOf[String]) // score
+          entry(4).asInstanceOf[String] // score
+        )
       }
   }
 
