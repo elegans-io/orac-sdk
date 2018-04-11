@@ -17,7 +17,7 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{FileIO, Flow, Framing}
 import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
-import io.elegans.orac.entities.{DeleteDocumentsResult, IndexDocumentResult, Recommendation}
+import io.elegans.orac.entities._
 import io.elegans.orac.serializers.OracJsonSupport
 import org.apache.spark.rdd.RDD
 
@@ -25,6 +25,7 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success, Try}
+import scalaz.Scalaz._
 
 case class OracConnectionParameters(
                                      host: String,
@@ -75,15 +76,15 @@ object OracHttpClient extends OracJsonSupport {
     */
   private[this] def streamToFile(path: String, parameters: OracConnectionParameters,
                                  httpMethod: HttpMethod,
-                                 filePath: String): Future[IOResult] = {
+                                 filePath: String, searchEntity: Future[MessageEntity] = Future(HttpEntity.Empty)):
+  Future[IOResult] = {
     val http = Http()
-    val entity = Future(HttpEntity.Empty)
     val url = uri(httpParameters = parameters, path = path)
     val credentials =
       "Basic " + Base64.getEncoder.encodeToString((parameters.username + ":" + parameters.password).getBytes)
     val headers = httpJsonHeader(headerValues = Map[String, String]("Authorization" -> credentials))
 
-    val response = entity.flatMap { ent =>
+    val response = searchEntity.flatMap { ent =>
       http.singleRequest(HttpRequest(
         method = httpMethod,
         uri = url,
@@ -98,16 +99,6 @@ object OracHttpClient extends OracJsonSupport {
         .runWith(FileIO.toPath(new File(filePath).toPath,
           options = Set(CREATE, WRITE, TRUNCATE_EXISTING)), materializer)
     }
-  }
-
-  /** fetch and write the actions on file
-    *
-    * @param parameters: the connection parameters
-    * @param filePath: the path of the output file
-    * @return : a future with an IOResult
-    */
-  def downloadActions(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
-    streamToFile(path = "/stream/action", parameters = parameters, HttpMethods.GET, filePath = filePath)
   }
 
   /** upload recommendations on orac-api
@@ -162,8 +153,8 @@ object OracHttpClient extends OracJsonSupport {
     * @param to an end range
     * @return the data structure with informations about deleted items
     */
-  def deleteRecommendations(parameters: OracConnectionParameters, from: Option[Long],
-                            to: Option[Long]): Option[DeleteDocumentsResult] = {
+  def deleteRecommendations(parameters: OracConnectionParameters,
+                            from: Option[Long], to: Option[Long]): Option[DeleteDocumentsResult] = {
 
     val http = Http()
     val queryString = if(from.isEmpty && to.isEmpty) {
@@ -213,8 +204,36 @@ object OracHttpClient extends OracJsonSupport {
     * @param filePath: the path of the output file
     * @return : a future with an IOResult
     */
-  def downloadOracUsers(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
-    streamToFile(path = "/stream/orac_user", parameters = parameters, HttpMethods.GET, filePath = filePath)
+  def downloadOracUsers(parameters: OracConnectionParameters, filePath: String,
+                        from: Option[Long] = None, to: Option[Long] = None):
+  Future[IOResult] = {
+    val entity = if(from.isEmpty && to.isEmpty) {
+      Future(HttpEntity.Empty)
+    } else {
+      val searchEntity = OracUserSearch(timestamp_from = from, timestamp_to = to)
+      Marshal(searchEntity).to[MessageEntity]
+    }
+    streamToFile(path = "/stream/orac_user", parameters = parameters, HttpMethods.GET, filePath = filePath,
+      searchEntity = entity)
+  }
+
+  /** fetch and write the actions on file
+    *
+    * @param parameters: the connection parameters
+    * @param filePath: the path of the output file
+    * @return : a future with an IOResult
+    */
+  def downloadActions(parameters: OracConnectionParameters, filePath: String,
+                      from: Option[Long] = None, to: Option[Long] = None):
+  Future[IOResult] = {
+    val entity = if(from.isEmpty && to.isEmpty) {
+      Future(HttpEntity.Empty)
+    } else {
+      val searchEntity = ActionSearch(timestamp_from = from, timestamp_to = to)
+      Marshal(searchEntity).to[MessageEntity]
+    }
+    streamToFile(path = "/stream/action", parameters = parameters, HttpMethods.GET, filePath = filePath,
+      searchEntity = entity)
   }
 
   /** fetch and write the items on file
@@ -223,7 +242,16 @@ object OracHttpClient extends OracJsonSupport {
     * @param filePath: the path of the output file
     * @return : a future with an IOResult
     */
-  def downloadItems(parameters: OracConnectionParameters, filePath: String): Future[IOResult] = {
-    streamToFile(path = "/stream/item", parameters = parameters, HttpMethods.GET, filePath = filePath)
+  def downloadItems(parameters: OracConnectionParameters, filePath: String,
+                    from: Option[Long] = None, to: Option[Long] = None):
+  Future[IOResult] = {
+    val entity = if(from.isEmpty && to.isEmpty) {
+      Future(HttpEntity.Empty)
+    } else {
+      val searchEntity = ItemSearch(timestamp_from = from, timestamp_to = to)
+      Marshal(searchEntity).to[MessageEntity]
+    }
+    streamToFile(path = "/stream/item", parameters = parameters, HttpMethods.GET, filePath = filePath,
+      searchEntity = entity)
   }
 }

@@ -12,6 +12,8 @@ object DownloadItems {
   private case class Params(
                              host: String = "http://localhost:8888",
                              indexName: String = "index_english_0",
+                             from: Long = 0,
+                             to: Long = 0,
                              username: String = "admin",
                              password: String = "adminp4ssw0rd",
                              output: String = "USER_ACTIONS")
@@ -41,6 +43,14 @@ object DownloadItems {
         .text(s"the index name" +
           s"  default: ${defaultParams.indexName}")
         .action((x, c) => c.copy(indexName = x))
+      opt[Long]("from")
+        .text(s"from timestamp" +
+          s"  default: ${defaultParams.from}")
+        .action((x, c) => c.copy(from = x))
+      opt[Long]("to")
+        .text(s"to timestamp" +
+          s"  default: ${defaultParams.to}")
+        .action((x, c) => c.copy(to = x))
       opt[String]("username")
         .text(s"the orac user name" +
           s"  default: ${defaultParams.username}")

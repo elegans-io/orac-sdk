@@ -12,6 +12,8 @@ object DownloadActions {
   private case class Params(
                              host: String = "http://localhost:8888",
                              indexName: String = "index_english_0",
+                             from: Long = 0,
+                             to: Long = 0,
                              username: String = "admin",
                              password: String = "adminp4ssw0rd",
                              output: String = "USER_ACTIONS")
@@ -37,6 +39,14 @@ object DownloadActions {
         .text(s"full hostname string: with protocol and port" +
           s"  default: ${defaultParams.host}")
         .action((x, c) => c.copy(host = x))
+      opt[Long]("from")
+        .text(s"from timestamp" +
+          s"  default: ${defaultParams.from}")
+        .action((x, c) => c.copy(from = x))
+      opt[Long]("to")
+        .text(s"to timestamp" +
+          s"  default: ${defaultParams.to}")
+        .action((x, c) => c.copy(to = x))
       opt[String]("indexName")
         .text(s"the index name" +
           s"  default: ${defaultParams.indexName}")
