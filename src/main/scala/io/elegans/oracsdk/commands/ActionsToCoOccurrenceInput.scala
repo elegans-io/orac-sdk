@@ -28,12 +28,12 @@ object ActionsToCoOccurrenceInput {
       SaveToCsv.saveStringToLongMapping(input = coOccurrenceInputData._2,
         outputFolder = params.output + "/ITEM_ID_TO_LONG")
 
-      println("Info: successfully terminated task : " + appName)
+      println("INFO: successfully terminated task : " + appName)
     } catch {
       case e: Exception =>
         println("Error: failed task : " + appName + " : " + e.getMessage)
     } finally {
-      println("Info: Stop spark context: " + appName)
+      println("INFO: Stop spark context: " + appName)
       spark.stop()
     }
   }

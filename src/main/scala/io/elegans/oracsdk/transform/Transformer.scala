@@ -177,7 +177,7 @@ object Transformer extends java.io.Serializable {
     userIdColumn.toDS.createOrReplaceTempView("userId")
     itemIdColumn.toDS.createOrReplaceTempView("itemId")
     entries.toDS.createOrReplaceTempView("entries")
-    val convertedEntries = spark.sql("select userId._2, itemId._2, entries._3 from entries join userId, " +
+    val convertedEntries = spark.sql("SELECT userId._2, itemId._2, entries._3 FROM entries LEFT OUTER JOIN userId, " +
       "itemId where entries._1 = userId._1 AND entries._2 = itemId._1").rdd
       .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
       .map(entry => (entry._1, entry._2, if(entry._3 == 0) defPref else entry._3 ))
@@ -220,8 +220,8 @@ object Transformer extends java.io.Serializable {
         stringProperties.getOrElse("author", "unknown"))
     }.toDS.createOrReplaceTempView("items")
 
-    val joinedItemActions = spark.sql("select actions._1, actions._2, actions._3, " +
-      "items._1, items._2, items._3 from actions join items " +
+    val joinedItemActions = spark.sql("SELECT actions._1, actions._2, actions._3, " +
+      "items._1, items._2, items._3 FROM actions LEFT OUTER JOIN items " +
       "where actions._2 = items._1").rdd
       .map { case (entry) =>
         Array(entry(0).asInstanceOf[String], // userId
@@ -248,9 +248,9 @@ object Transformer extends java.io.Serializable {
 
     println("INFO: preparing (userId, numericalUserId, itemId, itemRankId, score)")
     /* join itemsWithRankId with numericalUserId*/
-    spark.sql("select rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._4, rankedIdItems._3 " +
-      "from rankedIdItems join userId " +
-      "where rankedIdItems._1 = userId._1").rdd
+    spark.sql("SELECT rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._4, rankedIdItems._3 " +
+      "FROM rankedIdItems LEFT OUTER JOIN userId " +
+      "WHERE rankedIdItems._1 = userId._1").rdd
       .map{ case(entry) =>
         (entry(0).asInstanceOf[String], // userId
           entry(1).asInstanceOf[Long].toString, // numericalUserId

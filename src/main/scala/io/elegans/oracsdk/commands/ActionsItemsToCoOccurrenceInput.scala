@@ -87,12 +87,12 @@ object ActionsItemsToCoOccurrenceInput {
       joinedEntries.map(item => item._2 + "," + item._4 + "," + item._5)
         .saveAsTextFile(params.output + "/CO_OCCURRENCE_ACTIONS")
 
-      println("Info: successfully terminated task : " + appName)
+      println("INFO: successfully terminated task : " + appName)
     } catch {
       case e: Exception =>
-        println("Error: failed task : " + appName + " : " + e.getMessage)
+        println("ERROR: failed task : " + appName + " : " + e.getMessage)
     } finally {
-      println("Info: Stop spark context: " + appName)
+      println("INFO: Stop spark context: " + appName)
       spark.stop()
     }
   }

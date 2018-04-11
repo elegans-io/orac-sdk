@@ -50,12 +50,12 @@ object UploadLLRRecommendations {
       OracHttpClient.deleteRecommendations(parameters = parameters,
         from = Some(0), to = Some(generationTimestamp))
 
-      println("Info: successfully terminated task : " + appName)
+      println("INFO: successfully terminated task : " + appName)
     } catch {
       case e: Exception =>
-        println("Error: failed task : " + appName + " : " + e.getMessage)
+        println("ERROR: failed task : " + appName + " : " + e.getMessage)
     } finally {
-      println("Info: Stop spark context: " + appName)
+      println("INFO: Stop spark context: " + appName)
       spark.stop()
     }
   }
