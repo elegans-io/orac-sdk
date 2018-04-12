@@ -176,7 +176,7 @@ object Transformer extends java.io.Serializable {
     userIdColumn.toDS.createOrReplaceTempView("userId")
     itemIdColumn.toDS.createOrReplaceTempView("itemId")
     entries.toDS.createOrReplaceTempView("entries")
-    val convertedEntries = spark.sql("SELECT userId._2, itemId._2, entries._3 FROM entries LEFT OUTER JOIN userId, " +
+    val convertedEntries = spark.sql("SELECT userId._2, itemId._2, entries._3 FROM entries INNER JOIN userId, " +
       "itemId WHERE entries._1 = userId._1 AND entries._2 = itemId._1").rdd
       .map(entry => (entry(0).asInstanceOf[Long], entry(1).asInstanceOf[Long], entry(2).asInstanceOf[Double]))
       .map(entry => (entry._1, entry._2, if(entry._3 == 0) defPref else entry._3))
@@ -223,7 +223,7 @@ object Transformer extends java.io.Serializable {
     }.toDS.createOrReplaceTempView("items")
 
     val joinedItemActions = spark.sql("SELECT actions._1, actions._2, actions._3, " +
-      "items._1, items._2, items._3 FROM actions LEFT OUTER JOIN items " +
+      "items._1, items._2, items._3 FROM actions INNER JOIN items " +
       "WHERE actions._2 = items._1").rdd
       .map { case (entry) =>
         Array(
@@ -253,7 +253,7 @@ object Transformer extends java.io.Serializable {
     println("INFO: preparing (userId, numericalUserId, itemId, itemRankId, score)")
     /* join itemsWithRankId with numericalUserId*/
     spark.sql("SELECT rankedIdItems._1, userId._2, rankedIdItems._2, rankedIdItems._4, rankedIdItems._3 " +
-      "FROM rankedIdItems LEFT OUTER JOIN userId " +
+      "FROM rankedIdItems INNER JOIN userId " +
       "WHERE rankedIdItems._1 = userId._1").rdd
       .map { case(entry) =>
         (
