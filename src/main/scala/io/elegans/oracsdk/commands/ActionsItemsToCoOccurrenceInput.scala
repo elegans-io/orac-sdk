@@ -125,7 +125,7 @@ object ActionsItemsToCoOccurrenceInput {
       opt[String]("items")
         .text(s"the item's file or directory, if empty the data will be downloaded from orac" +
           s"  default: ${defaultParams.items}")
-        .action((x, c) => c.copy(actions = x))
+        .action((x, c) => c.copy(items = x))
       opt[Double]("defPref")
         .text(s"default preference value if 0.0" +
           s"  default: ${defaultParams.defPref}")
