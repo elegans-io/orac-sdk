@@ -63,10 +63,10 @@ object ActionsItemsToCoOccurrenceInput {
       }
 
       /* load actions and items */
-      println("INFO: loading actions")
+      println("INFO: loading actions: " + actionsFolder)
       val actionsEntities = LoadData.actions(path = actionsFolder, sc = sc)
 
-      println("INFO: loading items")
+      println("INFO: loading items: " + itemsFolder)
       val itemsEntities = LoadData.items(path = itemsFolder, sc = sc)
 
       /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
