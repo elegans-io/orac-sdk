@@ -32,6 +32,7 @@ object ActionsToCoOccurrenceInput {
     } catch {
       case e: Exception =>
         println("Error: failed task : " + appName + " : " + e.getMessage)
+        sys.exit(10)
     } finally {
       println("INFO: Stop spark context: " + appName)
       spark.stop()
