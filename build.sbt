@@ -96,3 +96,11 @@ developers := List(
   )
 )
 
+releaseProcess := Seq[ReleaseStep](
+                releaseStepCommand("sonatypeOpen \"io.elegans\" \"orac-sdk\""),
+                releaseStepCommand("publishSigned"),
+                releaseStepCommand("sonatypeRelease")
+)
+
+licenses := Seq(("GPLv2", url("https://www.gnu.org/licenses/old-licenses/gpl-2.0.md")))
+
