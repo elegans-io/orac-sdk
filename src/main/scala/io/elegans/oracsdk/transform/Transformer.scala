@@ -1,9 +1,12 @@
 package io.elegans.oracsdk.transform
 
 import io.elegans.orac.entities._
+import org.apache.spark.ml.feature.MinHashLSH
+import org.apache.spark.ml.linalg.{Vectors => sparkMlSparseVectors}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
-
+import org.apache.spark.sql.{SparkSession, _}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
 import scalaz.Scalaz._
 
 object Transformer extends java.io.Serializable {
@@ -47,6 +50,142 @@ object Transformer extends java.io.Serializable {
     }
   }
 
+  def shingles(text: String, sliding: Int = 5): List[String] = {
+    text.replaceAll("\\s+", "")
+      .replaceAll("[\\P{IsAlphabetic}]", "")
+      .sliding(sliding).toList
+  }
+
+
+  /** clustering by nearest elements, it is accurate, a bit faster and returns more clusters
+    *
+    * @param similarity the distance between items
+    * @return the items annotated with cluster id
+    */
+  def lshClustering0(similarity: RDD[(String, String, Double)]): RDD[(String, Long)] = {
+    similarity
+      .map {
+        case (x) => (x._2, List((x._1, x._3)))
+      }.reduceByKey((a, b) => a ++ b)
+      .map { case (x) =>
+        val h = x._2.minBy(_._2)
+        (h._1, Set((x._1, h._2)))
+      }.reduceByKey((a, b) => a ++ b)
+      .map(x => (x._1, x._2))
+      .zipWithIndex
+      .flatMap(x => x._1._2.map(y => (y._1, x._2)))
+  }
+
+  /** clustering by nearest elements, it is greedy and returns less clusters
+    *
+    * @param similarity the distance between items
+    * @return the items annotated with cluster id
+    */
+  def lshClustering1(similarity: RDD[(String, String, Double)]): RDD[(String, Long)] = {
+    similarity
+      .map{
+        case(x) => (x._2, List((x._1, x._3)))
+      }.reduceByKey((a, b) => a ++ b).zipWithIndex
+      .flatMap{ case(x) => // produce (element, group_id)
+        val l = List(x._1._1) ++ x._1._2.map(y => y._1)
+        l.map(e => (e, List(x._2)))
+      }
+      .reduceByKey((a, b) => a ++ b) // produce symbol -> (1,2, .., <group_id>)
+      .map(x => (x._2.min, Set(x._1))) // take the smallest group_id for each symbol (<group_id>, symbol)
+      .reduceByKey((a, b) => a ++ b) // produce symbol -> (<group_id>, (symbol0, .., symbolN))
+      .zipWithIndex
+      .flatMap(x => x._1._2.map(y => (y, x._2)))
+  }
+
+  /** Calculate the LSH and return a comparison between items
+    *
+    * @param input arrays of fields (all strings)
+    * @param columns identifiers for the rank
+    * @param spark the spark session
+    * @param simThreshold the min similarity threshold, the lower the more similar 0.0 means equal
+    * @param sliding the sliding window for shingles
+    * @param numHashTables the number of hash table for the LSH algorithm
+    * @param clustering the clustering function which groups similar items together
+    * @return same RDD with one more column with the RankIDs
+    */
+  def makeRankIdLSH(input: RDD[Array[String]],
+                    columns: Seq[Int],
+                    spark: SparkSession,
+                    simThreshold: Double = 0.4,
+                    sliding: Int = 3,
+                    numHashTables: Int = 100,
+                    clustering: RDD[(String, String, Double)] => RDD[(String, Long)] =
+                    lshClustering1): RDD[Array[String]] = {
+
+    assert(input.first.length >= columns.max + 1)
+    val new_input = input.map{ x => x :+ columns.map(y => x(y)).mkString(" ") }
+
+    val docShingles = new_input.map(x => x.last).distinct.map{ case(x) =>
+      (x, shingles(x.toLowerCase, sliding).toSet)
+    }
+
+    val shingleDictionary = docShingles.map(x => x).flatMap(x => x._2)
+      .distinct.zipWithIndex.collect.toMap
+
+    val shingleDictionaryLength = shingleDictionary.size
+
+    val shinglesFeatures = docShingles.map { case(x) =>
+      val docShingleSeq = x._2.map(sh => (sh, shingleDictionary.get(sh)))
+        .filter(_._2.nonEmpty).map { case(sh) =>
+        (sh._2.get.toInt, 1.0)
+      }.toSeq.sortWith(_._1 < _._1)
+      (x._1, sparkMlSparseVectors.sparse(shingleDictionaryLength, docShingleSeq))
+    }
+
+    val shinglesDataFrame = spark.createDataFrame(shinglesFeatures).toDF("id", "features")
+
+    val mh = new MinHashLSH()
+      .setNumHashTables(numHashTables)
+      .setInputCol("features")
+      .setOutputCol("hashValues")
+
+    val model = mh.fit(shinglesDataFrame)
+    val similarity = model.approxSimilarityJoin(shinglesDataFrame, shinglesDataFrame, simThreshold)
+      .select(
+        col("datasetA.id").alias("idA"),
+        col("datasetB.id").alias("idB"),
+        col("distCol").alias("dist"))
+      .rdd.map(x =>
+      (x(0).asInstanceOf[String],
+        x(1).asInstanceOf[String],
+        x(2).asInstanceOf[Double])).filter(x => x._1 =/= x._2)
+
+    // calculate clusters
+    val clusteredItems = clustering(similarity)
+    val newInputNumOfColumn: Int = if (new_input.isEmpty) 0 else new_input.first.length
+
+    // creating views for join
+    import spark.implicits._
+
+    val columnNames = List.range(0, newInputNumOfColumn, 1).map(x => "e_" + x)
+    val schema = StructType(columnNames.map(x => StructField(x, StringType, nullable = false)))
+    val newInputDataFrame = spark.createDataFrame(new_input.map(x => Row.fromSeq(x.toSeq)), schema)
+
+    newInputDataFrame.createOrReplaceTempView("input")
+    clusteredItems.toDS.createOrReplaceTempView("clustered")
+    val maxClusterIndex = clusteredItems.sortBy(_._2.toLong).map(x => x._2).max
+
+      val allButOneColumns = columnNames.reverse.tail.reverse.map(x => "input." + x).mkString(",")
+
+      val lastNewInputColumnId = "input.e_" + (newInputNumOfColumn - 1)
+      val unclusteredStartIndex = maxClusterIndex + 1
+      // taking all elements which does not belong to a cluster and assign a unique index
+      val notClusteredItems = spark.sql("SELECT " + lastNewInputColumnId +
+        " FROM input LEFT JOIN clustered ON " + lastNewInputColumnId +
+        " = clustered._1 WHERE clustered._2 IS NULL").map(x => x(0).toString)
+        .distinct.rdd.zipWithIndex.map(x => (x._1, x._2 + unclusteredStartIndex))
+
+      notClusteredItems.union(clusteredItems).toDS.createOrReplaceTempView("clustered")
+    spark.sql("SELECT " + allButOneColumns +
+      ", clustered._2 FROM input INNER JOIN clustered ON " + lastNewInputColumnId + " = clustered._1").rdd
+      .map(x => x.toSeq.toArray.map(y => y.toString))
+  }
+
   /**
     * Substitute elements in one or more columns with a numerical ID inversely
     * proportional to occurrence. Eg if RDD contains rows of books,
@@ -74,14 +213,16 @@ object Transformer extends java.io.Serializable {
         .sortBy(- _._2).map(x => x._1).zipWithIndex
         .map(x => (x._1, x._2.toString)).collect.toMap
       replace match {
-        case Some(v) => new_input.map(x => x.dropRight(1) :+ rankid_map(x.last)).map(x => x.updated(v, x.last).dropRight(1))
+        case Some(v) => new_input
+          .map(x => x.dropRight(1) :+ rankid_map(x.last))
+          .map(x => x.updated(v, x.last).dropRight(1))
         case _ => new_input.map(x => x.dropRight(1) :+ rankid_map(x.last))
       }
     } else {
       // from String to clean List[String]
       val input_with_tokenized_column = new_input.map(x => x :+ this.tokenizer(x.last))
 
-      val tokenized_column = new_input.map(x => x.last)
+      val tokenized_column = new_input.map(x => x.last) // x.last is the union of the selected columns
       // makes the map (Word, rankid)
       //      val rankid_map = this.tokenizeToRankID(...)
 
@@ -102,6 +243,7 @@ object Transformer extends java.io.Serializable {
       }
     }
   }
+
 
   /** Takes an RDD with a RankId column and provides a Map with rankID -> RDD(value)
     * (or the opposite if reverse)
@@ -236,7 +378,7 @@ object Transformer extends java.io.Serializable {
       }
 
     println("INFO: preparing items joined with rankID")
-    /* joinedWithRankId = RDD[(userId, itemId, score, rankId)] */
+    /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
     val joinedWithItemRankId = Transformer.makeRankId(input = joinedItemActions, columns = Seq(3,4),
       tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
 
