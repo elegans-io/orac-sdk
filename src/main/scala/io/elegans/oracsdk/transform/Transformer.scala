@@ -200,9 +200,9 @@ object Transformer extends java.io.Serializable {
     * @return same RDD with one more column with the RankIDs
     *
     */
-  def makeRankId(input: RDD[Array[String]], columns: Seq[Int],
-                 tokenize: Boolean,
-                 replace:Option[Int]=None): RDD[Array[String]] = {
+  def makeRankIdSimpleMatch(input: RDD[Array[String]], columns: Seq[Int],
+                            tokenize: Boolean,
+                            replace:Option[Int]=None): RDD[Array[String]] = {
 
     assert(input.first.length >= columns.max + 1)
     val new_input = input.map{ x => x :+ columns.map(y => x(y)).mkString(" ") }
@@ -326,16 +326,18 @@ object Transformer extends java.io.Serializable {
     (userIdColumn, itemIdColumn, convertedEntries)
   }
 
-  /** join actions and items and produce a tuple ready for the rankId generation
+  /** join actions and items and produce a tuple with the rankId
     *
     * @param actionsEntities RDD of Actions
     * @param itemsEntities RDD of Items
     * @param spark spark session
+    * @param rankIdFunction the function which calculate the rankId
     * @param defPref default score value
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
-  def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
+  private[this] def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
                                       spark: SparkSession,
+                                      rankIdFunction: RDD[Array[String]] => RDD[(String, String, String, String)],
                                       defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
     import spark.implicits._
 
@@ -379,7 +381,7 @@ object Transformer extends java.io.Serializable {
 
     println("INFO: preparing items joined with rankID")
     /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
-    val joinedWithItemRankId = Transformer.makeRankId(input = joinedItemActions, columns = Seq(3,4),
+    val joinedWithItemRankId = Transformer.makeRankIdSimpleMatch(input = joinedItemActions, columns = Seq(3,4),
       tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
 
     println("INFO: preparing userId -> numericalUserId")
@@ -406,6 +408,69 @@ object Transformer extends java.io.Serializable {
           entry(4).asInstanceOf[String] // score
         )
       }
+  }
+
+
+  /** join actions and items and produce a tuple with the rankId calculated used LSH
+    *
+    * @param actionsEntities RDD of Actions
+    * @param itemsEntities RDD of Items
+    * @param spark spark session
+    * @param simThreshold similarity threshold for LSH, lower is the value the stricter is the comparison
+    * @param sliding sliding window to calculate shingles for LSH
+    * @param numHashTables number of LSH buckets
+    * @param defPref default score value
+    * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
+    */
+  def joinActionEntityForCoOccurrenceLSH(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
+                                         spark: SparkSession,
+                                         simThreshold: Double = 0.4,
+                                         sliding: Int = 3,
+                                         numHashTables: Int = 100,
+                                         defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+    /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
+    def rankIdFunction(joinedItemActions: RDD[Array[String]]): RDD[(String, String, String, String)] =
+      Transformer.makeRankIdLSH(
+        input = joinedItemActions,
+        columns = Seq(3,4),
+        spark = spark,
+        simThreshold = simThreshold,
+        sliding = sliding,
+        numHashTables = numHashTables,
+        clustering = lshClustering1
+      ).map(item => (item(0), item(1), item(2), item(5)))
+
+    joinActionEntityForCoOccurrence(
+      actionsEntities = actionsEntities,
+      itemsEntities = itemsEntities,
+      spark = spark,
+      rankIdFunction = rankIdFunction,
+      defPref = defPref)
+  }
+
+  /** join actions and items and produce a tuple with the rankId calculated using the last to fields
+    *
+    * @param actionsEntities RDD of Actions
+    * @param itemsEntities RDD of Items
+    * @param spark spark session
+    * @param defPref default score value
+    * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
+    */
+  def joinActionEntityForCoOccurrenceSimpleMatch(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
+                                                 spark: SparkSession,
+                                                 defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+
+    /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
+    def rankIdFunction(joinedItemActions: RDD[Array[String]]): RDD[(String, String, String, String)] =
+      Transformer.makeRankIdSimpleMatch(input = joinedItemActions, columns = Seq(3,4),
+        tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
+
+    joinActionEntityForCoOccurrence(
+      actionsEntities = actionsEntities,
+      itemsEntities = itemsEntities,
+      spark = spark,
+      rankIdFunction = rankIdFunction,
+      defPref = defPref)
   }
 
 }

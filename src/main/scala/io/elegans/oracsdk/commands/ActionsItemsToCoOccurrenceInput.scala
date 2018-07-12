@@ -14,6 +14,9 @@ object ActionsItemsToCoOccurrenceInput {
                              actions: String = "",
                              items: String = "",
                              output: String = "CO_OCCURRENCE_INPUT",
+                             simThreshold: Double = 0.4,
+                             sliding: Int = 3,
+                             numHashTables: Int = 10,
                              defPref: Double = 2.5,
                              host: String = "http://localhost:8888",
                              indexName: String = "index_english_0",
@@ -71,8 +74,14 @@ object ActionsItemsToCoOccurrenceInput {
 
       /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
       println("INFO: join actions with items")
-      val joinedEntries = Transformer.joinActionEntityForCoOccurrence(actionsEntities = actionsEntities,
-        itemsEntities = itemsEntities, spark = spark, defPref = params.defPref)
+      val joinedEntries = Transformer.joinActionEntityForCoOccurrenceLSH(
+        actionsEntities = actionsEntities,
+        itemsEntities = itemsEntities,
+        spark = spark,
+        simThreshold = params.simThreshold,
+        sliding = params.sliding,
+        numHashTables = params.numHashTables,
+        defPref = params.defPref)
 
       /* save mapping: userId -> numericalUserId */
       println("INFO: saving userId -> numericalUserId mapping")
@@ -131,6 +140,18 @@ object ActionsItemsToCoOccurrenceInput {
         .text(s"default preference value if 0.0" +
           s"  default: ${defaultParams.defPref}")
         .action((x, c) => c.copy(defPref = x))
+      opt[Double]("simThreshold")
+        .text(s"LSH similarity threshold the lower the value the stricter is the match" +
+          s"  default: ${defaultParams.simThreshold}")
+        .action((x, c) => c.copy(simThreshold = x))
+      opt[Int]("sliding")
+        .text(s"sliding window for shingles" +
+          s"  default: ${defaultParams.sliding}")
+        .action((x, c) => c.copy(sliding = x))
+      opt[Int]("numHashTables")
+        .text(s"number of buckets for LSH, high values will slow down the LSH process" +
+          s"  default: ${defaultParams.numHashTables}")
+        .action((x, c) => c.copy(numHashTables = x))
       opt[String]("output")
         .text(s"the destination directory for the output: tree subfolders will be created: " +
           s" CO_OCCURRENCE_ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +
