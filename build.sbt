@@ -24,6 +24,7 @@ libraryDependencies ++= {
   val SparkVersion = "2.2.1"
   val OracEntitiesVersion = "1.0.2"
   val ScoptVersion	= "3.7.0"
+  val SparkXmlVersion = "0.4.1"
   Seq(
     "com.github.scopt" %% "scopt" % ScoptVersion,
     "com.typesafe.akka" %% "akka-actor" % AkkaVersion,
@@ -38,7 +39,8 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-typed" % AkkaVersion,
     "io.elegans" %% "orac-entities" % OracEntitiesVersion,
     "org.apache.spark" %% "spark-core" % SparkVersion,
-    "org.apache.spark" %% "spark-mllib" % SparkVersion
+    "org.apache.spark" %% "spark-mllib" % SparkVersion,
+    "com.databricks" %% "spark-xml" % SparkXmlVersion
   )
 }
 

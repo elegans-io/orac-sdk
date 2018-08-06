@@ -2,16 +2,25 @@ package io.elegans.oracsdk.transform
 
 import io.elegans.orac.entities._
 import org.apache.spark.ml.feature.MinHashLSH
-import org.apache.spark.ml.linalg.{Vectors => sparkMlSparseVectors}
+import org.apache.spark.ml.linalg.{Vector => sparkMlVector, Vectors => sparkMlVectors}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SparkSession, _}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{SparkSession, _}
 import scalaz.Scalaz._
+
+import scala.reflect.ClassTag
 
 object Transformer extends java.io.Serializable {
 
-  val informationCleaning = true
+  /** cartesian product */
+  def partialCartesian[T: ClassTag](a: Array[Array[T]], b: Array[T]): Array[Array[T]] = {
+    a.flatMap(xs => {
+      b.map(y => {
+        xs ++ Array(y)
+      })
+    })
+  }
 
   /** Tokenize a sentence
     *
@@ -22,14 +31,24 @@ object Transformer extends java.io.Serializable {
     .filter(_.matches("""[a-zA-Z_]\w*"""))
     .map(_.toLowerCase).mkString(" ")
 
-  def tokenizeToRankID(input:  RDD[List[String]],
-                       stopWords: Set[String]):  //It would be easier with an Array, but we cannot
+  /** Get a one-hot encoded vector from id and index
+    *
+    * @param index vector index from 0 to N-1
+    * @param vectorSize the size N of the vector
+    * @return a spark ML sparse vector with one-hot encoded value
+    */
+  def indexToOneHot(index: Int, vectorSize: Int): sparkMlVector = {
+    sparkMlVectors.sparse(size = vectorSize, indices = Array(index), values = Array(1.0d))
+  }
+
+  def tokenizeToRankID(input:  RDD[List[String]], stopWords: Set[String],
+                       informationCleaning: Boolean = true):  //It would be easier with an Array, but we cannot
   RDD[(String, String)] = {
 
     val word_occ_map_all = input.flatMap(identity).filter(x => ! stopWords.contains(x)).map((_, 1))
       .reduceByKey((a, b) => a + b)
 
-    if (!this.informationCleaning)
+    if (! informationCleaning)
       word_occ_map_all.sortBy(- _._2).map(x => x._1).zipWithIndex.map(x => (x._1, x._2.toString))
     else {
       val one_byte = 5.55  // nat
@@ -93,11 +112,12 @@ object Transformer extends java.io.Serializable {
       .reduceByKey((a, b) => a ++ b) // produce symbol -> (1,2, .., <group_id>)
       .map(x => (x._2.min, Set(x._1))) // take the smallest group_id for each symbol (<group_id>, symbol)
       .reduceByKey((a, b) => a ++ b) // produce symbol -> (<group_id>, (symbol0, .., symbolN))
+      .map(x => (x._1, x._2))
       .zipWithIndex
       .flatMap(x => x._1._2.map(y => (y, x._2)))
   }
 
-  /** Calculate the LSH and return a comparison between items
+  /** Calculate the LSH to cluster similar items and returns the rank id for each cluster
     *
     * @param input arrays of fields (all strings)
     * @param columns identifiers for the rank
@@ -106,7 +126,7 @@ object Transformer extends java.io.Serializable {
     * @param sliding the sliding window for shingles
     * @param numHashTables the number of hash table for the LSH algorithm
     * @param clustering the clustering function which groups similar items together
-    * @return same RDD with one more column with the RankIDs
+    * @return same RDD with one more column with the RankIDs starting from 0
     */
   def makeRankIdLSH(input: RDD[Array[String]],
                     columns: Seq[Int],
@@ -114,8 +134,8 @@ object Transformer extends java.io.Serializable {
                     simThreshold: Double = 0.4,
                     sliding: Int = 3,
                     numHashTables: Int = 100,
-                    clustering: RDD[(String, String, Double)] => RDD[(String, Long)] =
-                    lshClustering1): RDD[Array[String]] = {
+                    clustering: RDD[(String, String, Double)] => RDD[(String, Long)] = lshClustering1)
+  : RDD[Array[String]] = {
 
     assert(input.first.length >= columns.max + 1)
     val new_input = input.map{ x => x :+ columns.map(y => x(y)).mkString(" ") }
@@ -134,7 +154,7 @@ object Transformer extends java.io.Serializable {
         .filter(_._2.nonEmpty).map { case(sh) =>
         (sh._2.get.toInt, 1.0)
       }.toSeq.sortWith(_._1 < _._1)
-      (x._1, sparkMlSparseVectors.sparse(shingleDictionaryLength, docShingleSeq))
+      (x._1, sparkMlVectors.sparse(shingleDictionaryLength, docShingleSeq))
     }
 
     val shinglesDataFrame = spark.createDataFrame(shinglesFeatures).toDF("id", "features")
@@ -170,20 +190,27 @@ object Transformer extends java.io.Serializable {
     clusteredItems.toDS.createOrReplaceTempView("clustered")
     val maxClusterIndex = clusteredItems.sortBy(_._2.toLong).map(x => x._2).max
 
-      val allButOneColumns = columnNames.reverse.tail.reverse.map(x => "input." + x).mkString(",")
+    val allButOneColumns = columnNames.reverse.tail.reverse.map(x => "input." + x).mkString(",")
 
-      val lastNewInputColumnId = "input.e_" + (newInputNumOfColumn - 1)
-      val unclusteredStartIndex = maxClusterIndex + 1
-      // taking all elements which does not belong to a cluster and assign a unique index
-      val notClusteredItems = spark.sql("SELECT " + lastNewInputColumnId +
-        " FROM input LEFT JOIN clustered ON " + lastNewInputColumnId +
-        " = clustered._1 WHERE clustered._2 IS NULL").map(x => x(0).toString)
-        .distinct.rdd.zipWithIndex.map(x => (x._1, x._2 + unclusteredStartIndex))
+    val lastNewInputColumnId = "input.e_" + (newInputNumOfColumn - 1)
+    val unclusteredStartIndex = maxClusterIndex + 1
 
-      notClusteredItems.union(clusteredItems).toDS.createOrReplaceTempView("clustered")
-    spark.sql("SELECT " + allButOneColumns +
+    // taking all elements which does not belong to a cluster and assign a unique index
+    val notClusteredItems = spark.sql("SELECT " + lastNewInputColumnId +
+      " FROM input LEFT JOIN clustered ON " + lastNewInputColumnId +
+      " = clustered._1 WHERE clustered._2 IS NULL").map(x => x(0).toString)
+      .distinct.rdd.zipWithIndex.map(x => (x._1, x._2 + unclusteredStartIndex))
+
+    notClusteredItems.union(clusteredItems).toDS.createOrReplaceTempView("clustered")
+    val annotatedActions = spark.sql("SELECT " + allButOneColumns +
       ", clustered._2 FROM input INNER JOIN clustered ON " + lastNewInputColumnId + " = clustered._1").rdd
       .map(x => x.toSeq.toArray.map(y => y.toString))
+
+    // rank id: high frequency items get lower id
+    annotatedActions.map(x => (x.last, List(x)))
+      .reduceByKey((a, b) => a ++ b).sortBy(_._2.length, ascending=false)
+      .zipWithIndex
+      .flatMap(x => x._1._2.map(y => (Array(x._2.toString) ++ y.reverse.tail).reverse))
   }
 
   /**
@@ -335,10 +362,13 @@ object Transformer extends java.io.Serializable {
     * @param defPref default score value
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
-  private[this] def joinActionEntityForCoOccurrence(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-                                      spark: SparkSession,
-                                      rankIdFunction: RDD[Array[String]] => RDD[(String, String, String, String)],
-                                      defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+  private[this] def joinActionEntityForCoOccurrenceFormat0(actionsEntities: RDD[Action],
+                                                           itemsEntities: RDD[Item],
+                                                           spark: SparkSession,
+                                                           rankIdFunction:
+                                                           RDD[Array[String]] => RDD[(String, String, String, String)],
+                                                           defPref: Double = 2.5d):
+  RDD[(String, String, String, String, String)] = {
     import spark.implicits._
 
     actionsEntities.map{case(record) =>
@@ -381,8 +411,8 @@ object Transformer extends java.io.Serializable {
 
     println("INFO: preparing items joined with rankID")
     /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
-    val joinedWithItemRankId = Transformer.makeRankIdSimpleMatch(input = joinedItemActions, columns = Seq(3,4),
-      tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
+    val joinedWithItemRankId = rankIdFunction(joinedItemActions)
+      .map(item => (item._1, item._2, item._3, item._4))
 
     println("INFO: preparing userId -> numericalUserId")
     /* user_id => numerical_id */
@@ -410,7 +440,6 @@ object Transformer extends java.io.Serializable {
       }
   }
 
-
   /** join actions and items and produce a tuple with the rankId calculated used LSH
     *
     * @param actionsEntities RDD of Actions
@@ -422,12 +451,12 @@ object Transformer extends java.io.Serializable {
     * @param defPref default score value
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
-  def joinActionEntityForCoOccurrenceLSH(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-                                         spark: SparkSession,
-                                         simThreshold: Double = 0.4,
-                                         sliding: Int = 3,
-                                         numHashTables: Int = 100,
-                                         defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+  def joinActionEntityForCoOccurrenceLSHFormat0(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
+                                                spark: SparkSession,
+                                                simThreshold: Double = 0.4,
+                                                sliding: Int = 3,
+                                                numHashTables: Int = 100,
+                                                defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
     /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
     def rankIdFunction(joinedItemActions: RDD[Array[String]]): RDD[(String, String, String, String)] =
       Transformer.makeRankIdLSH(
@@ -440,7 +469,7 @@ object Transformer extends java.io.Serializable {
         clustering = lshClustering1
       ).map(item => (item(0), item(1), item(2), item(5)))
 
-    joinActionEntityForCoOccurrence(
+    joinActionEntityForCoOccurrenceFormat0(
       actionsEntities = actionsEntities,
       itemsEntities = itemsEntities,
       spark = spark,
@@ -456,16 +485,18 @@ object Transformer extends java.io.Serializable {
     * @param defPref default score value
     * @return an RDD : (userId, numericalUserId, itemId, itemRankId, score)
     */
-  def joinActionEntityForCoOccurrenceSimpleMatch(actionsEntities: RDD[Action], itemsEntities: RDD[Item],
-                                                 spark: SparkSession,
-                                                 defPref: Double = 2.5d): RDD[(String, String, String, String, String)] = {
+  def joinActionEntityForCoOccurrenceSimpleMatchFormat0(actionsEntities: RDD[Action],
+                                                        itemsEntities: RDD[Item],
+                                                        spark: SparkSession,
+                                                        defPref: Double = 2.5d):
+  RDD[(String, String, String, String, String)] = {
 
     /* joinedWithItemRankId = RDD[(userId, itemId, score, rankId)] */
     def rankIdFunction(joinedItemActions: RDD[Array[String]]): RDD[(String, String, String, String)] =
       Transformer.makeRankIdSimpleMatch(input = joinedItemActions, columns = Seq(3,4),
         tokenize = false, replace = None).map(item => (item(0), item(1), item(2), item(5)))
 
-    joinActionEntityForCoOccurrence(
+    joinActionEntityForCoOccurrenceFormat0(
       actionsEntities = actionsEntities,
       itemsEntities = itemsEntities,
       spark = spark,

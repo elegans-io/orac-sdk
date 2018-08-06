@@ -74,7 +74,7 @@ object ActionsItemsToCoOccurrenceInput {
 
       /* joinedEntries = RDD[(userId, numericalUserId, itemId, itemRankId, score)] */
       println("INFO: join actions with items")
-      val joinedEntries = Transformer.joinActionEntityForCoOccurrenceLSH(
+      val joinedEntries = Transformer.joinActionEntityForCoOccurrenceLSHFormat0(
         actionsEntities = actionsEntities,
         itemsEntities = itemsEntities,
         spark = spark,
