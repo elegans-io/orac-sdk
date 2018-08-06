@@ -62,7 +62,7 @@ object ActionsItemsToNNInput_0 {
       // building item to rankid map
       val itemsToRankId = rankedIdActions.map(x => (x(6), x.last)).distinct
       val maxRankId = itemsToRankId.map(x => x._2.toLong).max
-      itemsToRankId.map{case(id, rankId) => id + "," + rankId}.saveAsTextFile(params.output + "/ITEM_TO_RANKID")
+      itemsToRankId.map{case(id, rankId) => rankId + "," + id}.saveAsTextFile(params.output + "/ITEM_TO_RANKID")
 
       // building rankid to item map
       val newColumns = columns ++ List("RANKID")
@@ -106,7 +106,7 @@ object ActionsItemsToNNInput_0 {
               .filter(x => x.length == x.toSet.size).map(x => x.toList)
           }
       }.filter(x => x.nonEmpty)
-      skipNGram.map(x => x.mkString(",")).saveAsTextFile(params.output + "/ACTIONS")
+      skipNGram.map(x => x.mkString(",")).saveAsTextFile(params.output + "/ACTIONS_" + maxRankId)
       println("INFO: successfully terminated task : " + appName)
     } catch {
       case e: Exception =>
