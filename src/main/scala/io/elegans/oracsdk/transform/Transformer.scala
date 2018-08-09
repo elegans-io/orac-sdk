@@ -9,6 +9,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{SparkSession, _}
 import scalaz.Scalaz._
 
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 object Transformer extends java.io.Serializable {
@@ -20,6 +21,18 @@ object Transformer extends java.io.Serializable {
         xs ++ Array(y)
       })
     })
+  }
+
+  /* recursilvely apply the cartesian product of an array with itself */
+  def iterateCartesian[T: ClassTag](a: Array[T], count: Int = 2): Array[Array[T]] = {
+    @tailrec
+    def iterate(b: Array[Array[T]], countA: Int = 2): Array[Array[T]] =
+      if (countA == 1)
+        Transformer.partialCartesian(b, a)
+      else {
+        iterate(Transformer.partialCartesian(b, a), countA -1)
+      }
+    iterate(a.map(x => Array(x)), count)
   }
 
   /** Tokenize a sentence

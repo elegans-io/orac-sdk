@@ -6,23 +6,24 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{SparkSession, _}
 import scopt.OptionParser
 
-import scala.annotation.tailrec
-import scala.reflect.ClassTag
+import scala.util.Random
 
-object ActionsItemsToNNInput_0 {
-  private case class Params(
-                             actions: String = "",
-                             output: String = "NN_INPUT_0",
-                             simThreshold: Double = 0.4,
-                             sliding: Int = 3,
-                             numHashTables: Int = 10,
-                             defPref: Double = 2.5,
-                             clustering: Int = 0,
-                             windowSize: Int = 3
+object ActionsItemsToSkipGram_0 {
+  private case class Params(actions: String = "",
+                            output: String = "ActionsItemsToSkipGram_0",
+                            simThreshold: Double = 0.4,
+                            sliding: Int = 3,
+                            numHashTables: Int = 10,
+                            defPref: Double = 2.5,
+                            clustering: Int = 0,
+                            windowSize: Int = 3,
+                            pairs: Boolean = false,
+                            shuffle: Boolean = false,
+                            genCoOccurrence: Boolean = false
                            )
 
   private def executeTask(params: Params): Unit = {
-    val appName = "ActionsItemsToNNInput_0"
+    val appName = "ActionsItemsToSkipGram_0"
     val spark = SparkSession.builder().appName(appName).getOrCreate()
     val sc = spark.sparkContext
 
@@ -31,7 +32,7 @@ object ActionsItemsToNNInput_0 {
       println("INFO: loading actions: " + params.actions)
 
       val df = spark.read.format("com.databricks.spark.xml")
-          .option("rowTag", "ROW")
+        .option("rowTag", "ROW")
         .load(params.actions)
 
       val columns = List("INVOICE_ID", "INVOICE_REFERENCE", "INVOICE_LINE_ID", "INVOICE_DATE",
@@ -61,8 +62,30 @@ object ActionsItemsToNNInput_0 {
 
       // building item to rankid map
       val itemsToRankId = rankedIdActions.map(x => (x(6), x.last)).distinct
-      val maxRankId = itemsToRankId.map(x => x._2.toLong).max
+      val maxItemRankId = itemsToRankId.map(x => x._2.toLong).max
       itemsToRankId.map{case(id, rankId) => rankId + "," + id}.saveAsTextFile(params.output + "/ITEM_TO_RANKID")
+
+      if(params.genCoOccurrence) {
+        // import spark implicits to create views for the join
+        import spark.implicits._
+
+        // build and save rankid map for users
+        val usersToRankId = rankedIdActions.map(x => (x(4), 1))
+          .reduceByKey((a, b) => a + b)
+          .sortBy(_._2, ascending = true).map(_._1)
+          .zipWithIndex // parnterId, partnerRankId
+        usersToRankId.map { case (id, rankId) => rankId + "," + id }.saveAsTextFile(params.output + "/USER_TO_RANKID")
+
+        // build and save input for the co-occurrence algorithm
+        rankedIdActions.map(x => (x(4), x.last.toLong)).toDS
+          .createOrReplaceTempView("partnerAction") // partnerId, itemRankId
+        usersToRankId.toDS.createOrReplaceTempView("userRankId")
+        spark.sql("select userRankId._2, partnerAction._2 from userRankId, partnerAction " +
+            "WHERE userRankId._1 = partnerAction._1").rdd.map{
+          case(entry) =>
+            entry(0).asInstanceOf[Long] + "," + entry(1).asInstanceOf[Long]
+        }.saveAsTextFile(params.output + "/CO_OCCURRENCE_INPUT")
+      }
 
       // building rankid to item map
       val newColumns = columns ++ List("RANKID")
@@ -75,20 +98,7 @@ object ActionsItemsToNNInput_0 {
       }.map{ case(invoiceID, items2)=>
         (invoiceID, items2.toList.sortWith(_.head("INVOICE_DATE") < _.head("INVOICE_DATE")))
       } /* each line is (partnerID, Baskets[Basket[Item[key, value]]]) baskets are sorted in asc. order by date */
-      .map{ case(_, baskets) => baskets.map{case(basket) => basket} } // foreach basket
-
-
-      /* recursilvely apply the cartesian product of an array with itself */
-      def iterateCartesian[T: ClassTag](a: Array[T], count: Int = 2): Array[Array[T]] = {
-        @tailrec
-        def iterate(b: Array[Array[T]], countA: Int = 2): Array[Array[T]] =
-          if (countA == 1)
-            Transformer.partialCartesian(b, a)
-          else {
-            iterate(Transformer.partialCartesian(b, a), countA -1)
-          }
-        iterate(a.map(x => Array(x)), count)
-      }
+        .map{ case(_, baskets) => baskets.map{case(basket) => basket} } // foreach basket
 
       // preparing skip-gram with permutations,
       //    e.g. for a window = 3 the result is the permutations without repetitions:
@@ -98,15 +108,35 @@ object ActionsItemsToNNInput_0 {
       //  <w2> <w0> <w1>
       //  <w0> <w1> <w2>
       //  <w0> <w2> <w1>
-      val skipNGram = groupedActions.flatMap{ case(customerBaskets) =>
-        customerBaskets.filter(_.length >= params.windowSize)
-          .flatMap { case (basket) =>
-            val basketItemsRankId = basket.map(x => x("RANKID")).toArray
-            iterateCartesian(basketItemsRankId, params.windowSize -1)
-              .filter(x => x.length == x.toSet.size).map(x => x.toList)
-          }
+      val skipNGram = groupedActions.flatMap { case(customerBaskets) =>
+        customerBaskets.flatMap { case (basket) =>
+          val basketItemsRankId = basket.map(x => x("RANKID")).toArray
+          basketItemsRankId.combinations(params.windowSize).flatMap(x => x.permutations)
+        }
       }.filter(x => x.nonEmpty)
-      skipNGram.map(x => x.mkString(",")).saveAsTextFile(params.output + "/ACTIONS_" + maxRankId)
+
+      val skipGramItems = if(params.pairs) {
+        skipNGram.flatMap {
+          /* pairs */
+          case (l) =>
+            val head = l.head
+            l.tail.map(y => Array(head, y))
+        }
+      } else {
+        skipNGram
+      }
+
+      val out = if(params.shuffle) {
+        val rand = Random
+        skipGramItems.map(x => (x, rand.nextInt())).sortBy(_._2).map(_._1)
+      } else {
+        skipGramItems
+      }
+
+      val numOfOutEntries = out.count()
+      out.map(x => x.mkString(","))
+        .saveAsTextFile(params.output + "/ACTIONS_" + maxItemRankId + "_" + numOfOutEntries)
+
       println("INFO: successfully terminated task : " + appName)
     } catch {
       case e: Exception =>
@@ -151,9 +181,21 @@ object ActionsItemsToNNInput_0 {
         .text(s"word2vec window size" +
           s"  default: ${defaultParams.windowSize}")
         .action((x, c) => c.copy(windowSize = x))
+      opt[Unit]("pairs")
+        .text(s"arrange the labels and targets in pairs" +
+          s"  default: ${defaultParams.pairs}")
+        .action((_, c) => c.copy(pairs = true))
+      opt[Unit]("shuffle")
+        .text(s"shuffle pairs, requires a big amount of heap space" +
+          s"  default: ${defaultParams.pairs}")
+        .action((_, c) => c.copy(shuffle = true))
+      opt[Unit]("genCoOccurrence")
+        .text(s"generate input for the co-occurrence algorithm" +
+          s"  default: ${defaultParams.genCoOccurrence}")
+        .action((_, c) => c.copy(genCoOccurrence = true))
       opt[String]("output")
-        .text(s"the destination directory for the output: tree subfolders will be created: " +
-          s" CO_OCCURRENCE_ACTIONS, USER_ID_TO_LONG, ITEM_ID_TO_LONG" +
+        .text(s"the destination directory for the output: 2 sub folders will be created: " +
+          s" ITEM_TO_RANKID, ACTIONS" +
           s"  default: ${defaultParams.output}")
         .action((x, c) => c.copy(output = x))
     }
