@@ -20,7 +20,8 @@ object ActionsItemsToSkipGram_0 {
                             pairs: Boolean = false,
                             shuffle: Boolean = false,
                             genCoOccurrence: Boolean = false,
-                            basketToBasket: Boolean = false
+                            basketToBasket: Boolean = false,
+                            rankIdToPopularItems: Boolean = false
                            )
 
   private def executeTask(params: Params): Unit = {
@@ -82,7 +83,7 @@ object ActionsItemsToSkipGram_0 {
           .createOrReplaceTempView("partnerAction") // partnerId, itemRankId
         usersToRankId.toDS.createOrReplaceTempView("userRankId")
         spark.sql("select userRankId._2, partnerAction._2 from userRankId, partnerAction " +
-            "WHERE userRankId._1 = partnerAction._1").rdd.map{
+          "WHERE userRankId._1 = partnerAction._1").rdd.map{
           case(entry) =>
             entry(0).asInstanceOf[Long] + "," + entry(1).asInstanceOf[Long]
         }.saveAsTextFile(params.output + "/CO_OCCURRENCE_INPUT")
@@ -90,8 +91,9 @@ object ActionsItemsToSkipGram_0 {
 
       // building rankid to item map
       val newColumns = columns ++ List("RANKID")
+      val rankedIdActionMaps = rankedIdActions.map(x => newColumns.zip(x).toMap)
 
-      val groupedActions = rankedIdActions.map(x => newColumns.zip(x).toMap).map(x => (x("PRT_PARTNER_ID"), List(x)))
+      val groupedActions = rankedIdActionMaps.map(x => (x("PRT_PARTNER_ID"), List(x)))
         .reduceByKey(
           (a, b) => a ++ b).map { case(partnerID, items0) =>
         (partnerID, items0.groupBy(_("INVOICE_DATE")) // put together the invoices of the same day
@@ -112,6 +114,17 @@ object ActionsItemsToSkipGram_0 {
           }
         }.flatMap(x => x.map(y => y._1 + "," + y._2 + "," + y._3.mkString(",") + "," + y._4.mkString(",")))
           .saveAsTextFile(params.output + "/BASKET_TO_BASKET_ACTIONS")
+      }
+
+      if(params.rankIdToPopularItems) {
+        rankedIdActionMaps.map(x => (x("DESCRIPTION"), (x("RANKID"), 1l)))
+          .reduceByKey((a, b) => (a._1, a._2 + b._2))
+          .map(x => (x._2._1, List((x._1, x._2._2))))
+          .reduceByKey((a, b) => a ++ b)
+          .map(x => (x._1, x._2.sortWith(_._2 > _._2)))
+          .map(x => (x._1, x._2.map(y => y._1)))
+          .map(x => x._1 + "\t" + x._2.mkString("\t"))
+          .saveAsTextFile(params.output + "/RANK_ID_TO_RANKED_ITEMS")
       }
 
       // preparing skip-gram with permutations,
@@ -208,9 +221,13 @@ object ActionsItemsToSkipGram_0 {
           s"  default: ${defaultParams.genCoOccurrence}")
         .action((_, c) => c.copy(genCoOccurrence = true))
       opt[Unit]("basketToBasket")
-        .text(s"generate baskt to basket item list" +
+        .text(s"generate basket to basket item list" +
           s"  default: ${defaultParams.basketToBasket}")
         .action((_, c) => c.copy(basketToBasket = true))
+      opt[Unit]("rankIdToPopularItems")
+        .text(s"generate rankId to items sorted by popularity" +
+          s"  default: ${defaultParams.rankIdToPopularItems}")
+        .action((_, c) => c.copy(rankIdToPopularItems = true))
       opt[String]("output")
         .text(s"the destination directory for the output: 2 sub folders will be created: " +
           s" ITEM_TO_RANKID, ACTIONS" +
