@@ -19,7 +19,8 @@ object ActionsItemsToSkipGram_0 {
                             windowSize: Int = 3,
                             pairs: Boolean = false,
                             shuffle: Boolean = false,
-                            genCoOccurrence: Boolean = false
+                            genCoOccurrence: Boolean = false,
+                            basketToBasket: Boolean = false
                            )
 
   private def executeTask(params: Params): Unit = {
@@ -73,7 +74,7 @@ object ActionsItemsToSkipGram_0 {
         val usersToRankId = rankedIdActions.map(x => (x(4), 1))
           .reduceByKey((a, b) => a + b)
           .sortBy(_._2, ascending = true).map(_._1)
-          .zipWithIndex // parnterId, partnerRankId
+          .zipWithIndex // partnerId, partnerRankId
         usersToRankId.map { case (id, rankId) => rankId + "," + id }.saveAsTextFile(params.output + "/USER_TO_RANKID")
 
         // build and save input for the co-occurrence algorithm
@@ -100,6 +101,19 @@ object ActionsItemsToSkipGram_0 {
       } /* each line is (partnerID, Baskets[Basket[Item[key, value]]]) baskets are sorted in asc. order by date */
         .map{ case(_, baskets) => baskets.map{case(basket) => basket} } // foreach basket
 
+      if(params.basketToBasket) {
+        groupedActions.map { case (baskets) =>
+          baskets.sliding(2).filter(x => x.size > 1).map { case (basketPair) =>
+            val prev = basketPair.head
+            val next = basketPair(1)
+            (prev.size, next.size,
+              prev.map { case (item) => item("RANKID") }.distinct,
+              next.map { case (item) => item("RANKID") }.distinct)
+          }
+        }.flatMap(x => x.map(y => y._1 + "," + y._2 + "," + y._3.mkString(",") + "," + y._4.mkString(",")))
+          .saveAsTextFile(params.output + "/BASKET_TO_BASKET_ACTIONS")
+      }
+
       // preparing skip-gram with permutations,
       //    e.g. for a window = 3 the result is the permutations without repetitions:
       //  <w1> <w2> <w0>
@@ -110,7 +124,7 @@ object ActionsItemsToSkipGram_0 {
       //  <w0> <w2> <w1>
       val skipNGram = groupedActions.flatMap { case(customerBaskets) =>
         customerBaskets.flatMap { case (basket) =>
-          val basketItemsRankId = basket.map(x => x("RANKID")).toArray
+          val basketItemsRankId = basket.map(x => x("RANKID")).distinct.toArray
           basketItemsRankId.combinations(params.windowSize).flatMap(x => x.permutations)
         }
       }.filter(x => x.nonEmpty)
@@ -193,6 +207,10 @@ object ActionsItemsToSkipGram_0 {
         .text(s"generate input for the co-occurrence algorithm" +
           s"  default: ${defaultParams.genCoOccurrence}")
         .action((_, c) => c.copy(genCoOccurrence = true))
+      opt[Unit]("basketToBasket")
+        .text(s"generate baskt to basket item list" +
+          s"  default: ${defaultParams.basketToBasket}")
+        .action((_, c) => c.copy(basketToBasket = true))
       opt[String]("output")
         .text(s"the destination directory for the output: 2 sub folders will be created: " +
           s" ITEM_TO_RANKID, ACTIONS" +
