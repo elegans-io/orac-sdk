@@ -6,7 +6,9 @@ import scopt.OptionParser
 
 object ItemSimilarityToSkipGram {
   private case class Params(itemSimilarity: String = "",
-                            output: String = "ItemSimilarityToSkipGram"
+                            output: String = "ItemSimilarityToSkipGram",
+                            maxRankId: Long = 0,
+                            threshold: Double = 0.0
                            )
 
   private def executeTask(params: Params): Unit = {
@@ -20,17 +22,24 @@ object ItemSimilarityToSkipGram {
 
       val inputData: RDD[(Long, List[(Long, Double)])] = spark.read.format("com.databricks.spark.csv")
         .option("delimiter", "\t")
-        .load(params.itemSimilarity).map {
-        case (row: Row) =>
-          (row.get(0).asInstanceOf[Long], List((row.get(1).asInstanceOf[Long], row.get(2).asInstanceOf[Double])))
-      }.rdd
+        .load(params.itemSimilarity).rdd.map { case (row: Row) =>
+          (row.get(0).asInstanceOf[String].toLong,
+            List((row.get(1).asInstanceOf[String].toLong,
+              row.get(2).asInstanceOf[String].toDouble  )))
+      }
 
-      inputData.reduceByKey((a, b) => a ++ b).flatMap { case(e0, similar) =>
-        similar.flatMap {
-          case (s) =>
+      val skipGramItems = inputData.reduceByKey((a, b) => a ++ b).flatMap { case(e0, similar) =>
+        similar.flatMap { case (s) =>
             List((e0, s._1, s._2), (e0, s._1, s._2))
         }
-      }.map(x => x._1 + "," + x._2).saveAsTextFile(params.output + "/CO_OCCURRENCE_TO_SKIPGRAM")
+      }
+
+      val entryCount = skipGramItems.count
+      val maxRankId = if(params.maxRankId == 0)
+        skipGramItems.filter(x => x._3 >= params.threshold).flatMap(x => List(x._1, x._2)).max
+      else
+        params.maxRankId
+      skipGramItems.map(x => x._1 + "," + x._2).saveAsTextFile(params.output + "/ACTIONS_" + maxRankId + "_" + entryCount)
 
       println("INFO: successfully terminated task : " + appName)
     } catch {
@@ -52,6 +61,14 @@ object ItemSimilarityToSkipGram {
         .text(s"the itemSimilarity encoded as " +
           s"  default: ${defaultParams.itemSimilarity}")
         .action((x, c) => c.copy(itemSimilarity = x))
+      opt[Long]("maxRankId")
+        .text(s"max Rank ID, if 0 the max rank id from co-occurrence is used" +
+          s"  default: ${defaultParams.maxRankId}")
+        .action((x, c) => c.copy(maxRankId = x))
+      opt[Double]("threshold")
+        .text(s"filter by similarity value" +
+          s"  default: ${defaultParams.threshold}")
+        .action((x, c) => c.copy(threshold = x))
       opt[String]("output")
         .text(s"the destination directory for the output: 2 sub folders will be created: " +
           s" ITEM_TO_RANKID, ACTIONS" +
