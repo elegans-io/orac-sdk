@@ -4,10 +4,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{SparkSession, _}
 import scopt.OptionParser
 
-object ItemSimilarityToSkipGram {
+object MahoutItemSimToItemItem {
   private case class Params(itemSimilarity: String = "",
-                            output: String = "ItemSimilarityToSkipGram",
-                            maxRankId: Long = 0,
+                            output: String = "MahoutItemSimToItemItem",
                             threshold: Double = 0.0
                            )
 
@@ -35,11 +34,9 @@ object ItemSimilarityToSkipGram {
       }
 
       val entryCount = skipGramItems.count
-      val maxRankId = if(params.maxRankId == 0)
-        skipGramItems.filter(x => x._3 >= params.threshold).flatMap(x => List(x._1, x._2)).max
-      else
-        params.maxRankId
-      skipGramItems.map(x => x._1 + "," + x._2).saveAsTextFile(params.output + "/ACTIONS_" + maxRankId + "_" + entryCount)
+      val maxRankId = skipGramItems.filter(x => x._3 >= params.threshold).flatMap(x => List(x._1, x._2)).max
+      skipGramItems.map(x => x._1 + "," + x._2)
+        .saveAsTextFile(params.output + "/COOCCURRENCE_" + maxRankId + "_" + entryCount)
 
       println("INFO: successfully terminated task : " + appName)
     } catch {
@@ -54,24 +51,19 @@ object ItemSimilarityToSkipGram {
 
   def main(args: Array[String]) {
     val defaultParams = Params()
-    val parser = new OptionParser[Params]("Actions and Items to co-occurrence input") {
-      head("create an input dataset suitable for the co-occurrence algorithm")
+    val parser = new OptionParser[Params]("ItemSimilarity to item,item pairs ") {
+      head("transform mahout item similarity output (item0 item1:score, ..., itemN:score) to item,item")
       help("help").text("prints this usage text")
       opt[String]("itemSimilarity")
-        .text(s"the itemSimilarity encoded as " +
+        .text(s"the itemSimilarity in mahout format " +
           s"  default: ${defaultParams.itemSimilarity}")
         .action((x, c) => c.copy(itemSimilarity = x))
-      opt[Long]("maxRankId")
-        .text(s"max Rank ID, if 0 the max rank id from co-occurrence is used" +
-          s"  default: ${defaultParams.maxRankId}")
-        .action((x, c) => c.copy(maxRankId = x))
       opt[Double]("threshold")
         .text(s"filter by similarity value" +
           s"  default: ${defaultParams.threshold}")
         .action((x, c) => c.copy(threshold = x))
       opt[String]("output")
-        .text(s"the destination directory for the output: 2 sub folders will be created: " +
-          s" ITEM_TO_RANKID, ACTIONS" +
+        .text(s"the destination directory for the output with the subfolder COOCCURRENCE_<maxRankId>_<size>" +
           s"  default: ${defaultParams.output}")
         .action((x, c) => c.copy(output = x))
     }

@@ -8,18 +8,17 @@ import scopt.OptionParser
 
 import scala.util.Random
 
-object ActionsItemsToSkipGram_0 {
-  private case class Params(actions: String = "",
-                            output: String = "ActionsItemsToSkipGram_0",
+object SupermarketETL {
+  private case class Params(input: String = "",
+                            output: String = "SupermarketETL",
                             simThreshold: Double = 0.4,
                             sliding: Int = 3,
                             numHashTables: Int = 10,
-                            defPref: Double = 2.5,
                             clustering: Int = 0,
                             windowSize: Int = 3,
-                            pairs: Boolean = false,
+                            pairs: Boolean = true,
                             shuffle: Boolean = false,
-                            genCoOccurrence: Boolean = false,
+                            genUserItemPairs: Boolean = false,
                             basketToBasket: Boolean = false,
                             rankIdToPopularItems: Boolean = false
                            )
@@ -30,12 +29,12 @@ object ActionsItemsToSkipGram_0 {
     val sc = spark.sparkContext
 
     try {
-      /* load actions and items */
-      println("INFO: loading actions: " + params.actions)
+      /* load input file */
+      println("INFO: loading input data (xml): " + params.input)
 
       val df = spark.read.format("com.databricks.spark.xml")
         .option("rowTag", "ROW")
-        .load(params.actions)
+        .load(params.input)
 
       val columns = List("INVOICE_ID", "INVOICE_REFERENCE", "INVOICE_LINE_ID", "INVOICE_DATE",
         "PRT_PARTNER_ID", "BARCODE", "DESCRIPTION", "QUANTITY", "PRICE", "TOTAL_AMOUNT",
@@ -67,7 +66,7 @@ object ActionsItemsToSkipGram_0 {
       val maxItemRankId = itemsToRankId.map(x => x._2.toLong).max
       itemsToRankId.map{case(id, rankId) => rankId + "," + id}.saveAsTextFile(params.output + "/ITEM_TO_RANKID")
 
-      if(params.genCoOccurrence) {
+      if(params.genUserItemPairs) {
         // import spark implicits to create views for the join
         import spark.implicits._
 
@@ -78,7 +77,7 @@ object ActionsItemsToSkipGram_0 {
           .zipWithIndex // partnerId, partnerRankId
         usersToRankId.map { case (id, rankId) => rankId + "," + id }.saveAsTextFile(params.output + "/USER_TO_RANKID")
 
-        // build and save input for the co-occurrence algorithm
+        // build and save input for the mahout co-occurrence algorithm
         rankedIdActions.map(x => (x(4), x.last.toLong)).toDS
           .createOrReplaceTempView("partnerAction") // partnerId, itemRankId
         usersToRankId.toDS.createOrReplaceTempView("userRankId")
@@ -86,7 +85,7 @@ object ActionsItemsToSkipGram_0 {
           "WHERE userRankId._1 = partnerAction._1").rdd.map{
           case(entry) =>
             entry(0).asInstanceOf[Long] + "," + entry(1).asInstanceOf[Long]
-        }.saveAsTextFile(params.output + "/CO_OCCURRENCE_INPUT")
+        }.saveAsTextFile(params.output + "/USER_ITEM")
       }
 
       // building rankid to item map
@@ -108,9 +107,10 @@ object ActionsItemsToSkipGram_0 {
           baskets.sliding(2).filter(x => x.size > 1).map { case (basketPair) =>
             val prev = basketPair.head
             val next = basketPair(1)
-            (prev.size, next.size,
-              prev.map { case (item) => item("RANKID") }.distinct,
-              next.map { case (item) => item("RANKID") }.distinct)
+            (prev.size, // prev basket size
+              next.size, // next basket size
+              prev.map { case (item) => item("RANKID") }.distinct, // prev basket items
+              next.map { case (item) => item("RANKID") }.distinct) // next basket items
           }
         }.flatMap(x => x.map(y => y._1 + "," + y._2 + "," + y._3.mkString(",") + "," + y._4.mkString(",")))
           .saveAsTextFile(params.output + "/BASKET_TO_BASKET_ACTIONS")
@@ -162,7 +162,7 @@ object ActionsItemsToSkipGram_0 {
 
       val numOfOutEntries = out.count()
       out.map(x => x.mkString(","))
-        .saveAsTextFile(params.output + "/ACTIONS_" + maxItemRankId + "_" + numOfOutEntries)
+        .saveAsTextFile(params.output + "/COOCCURRENCE_" + maxItemRankId + "_" + numOfOutEntries)
 
       println("INFO: successfully terminated task : " + appName)
     } catch {
@@ -177,17 +177,20 @@ object ActionsItemsToSkipGram_0 {
 
   def main(args: Array[String]) {
     val defaultParams = Params()
-    val parser = new OptionParser[Params]("Actions and Items to co-occurrence input") {
-      head("create an input dataset suitable for the co-occurrence algorithm")
+    val parser = new OptionParser[Params]("Transform data for various algorithms") {
+      head("Generate rank id for items and users and produce:" + "\r" +
+        "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\r" +
+        "2) <output>/BASKET_TO_BASKET_ACTIONS : a folder with adjacent basket items" + "\r" +
+        "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\r" +
+        "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\r" +
+        "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\r" +
+        " The Rank ID for the items is calculated using the LSH clustering algorothm."
+      )
       help("help").text("prints this usage text")
-      opt[String]("actions")
-        .text(s"the action's file or directory, if empty the data will be downloaded from orac" +
-          s"  default: ${defaultParams.actions}")
-        .action((x, c) => c.copy(actions = x))
-      opt[Double]("defPref")
-        .text(s"default preference value if 0.0" +
-          s"  default: ${defaultParams.defPref}")
-        .action((x, c) => c.copy(defPref = x))
+      opt[String]("input")
+        .text(s"the input file, at the moment only a specific XML format is supported" +
+          s"  default: ${defaultParams.input}")
+        .action((x, c) => c.copy(input = x))
       opt[Double]("simThreshold")
         .text(s"LSH similarity threshold the lower the value the stricter is the match" +
           s"  default: ${defaultParams.simThreshold}")
@@ -209,17 +212,17 @@ object ActionsItemsToSkipGram_0 {
           s"  default: ${defaultParams.windowSize}")
         .action((x, c) => c.copy(windowSize = x))
       opt[Unit]("pairs")
-        .text(s"arrange the labels and targets in pairs" +
+        .text(s"disable arrangement of the labels and targets in pairs" +
           s"  default: ${defaultParams.pairs}")
-        .action((_, c) => c.copy(pairs = true))
+        .action((_, c) => c.copy(pairs = false))
       opt[Unit]("shuffle")
         .text(s"shuffle pairs, requires a big amount of heap space" +
           s"  default: ${defaultParams.pairs}")
         .action((_, c) => c.copy(shuffle = true))
-      opt[Unit]("genCoOccurrence")
-        .text(s"generate input for the co-occurrence algorithm" +
-          s"  default: ${defaultParams.genCoOccurrence}")
-        .action((_, c) => c.copy(genCoOccurrence = true))
+      opt[Unit]("genMahoutActions")
+        .text(s"generate user,item pairs from baskets" +
+          s"  default: ${defaultParams.genUserItemPairs}")
+        .action((_, c) => c.copy(genUserItemPairs = true))
       opt[Unit]("basketToBasket")
         .text(s"generate basket to basket item list" +
           s"  default: ${defaultParams.basketToBasket}")
