@@ -181,11 +181,11 @@ object SupermarketETL {
       head("Generate rank id for items and users and produce:" + "\r" +
         "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\r" +
         "2) <output>/TRAINERS_LABELS_BASKET : a folder with items from adjacent baskets " + "\r" +
-         "e.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\r" +
+         "\te.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\r" +
         "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\r" +
         "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\r" +
         "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\r" +
-        " The Rank ID for the items is calculated using the LSH clustering algorothm."
+        "\tThe Rank ID for the items is calculated using the LSH clustering algorithm."
       )
       help("help").text("prints this usage text")
       opt[String]("input")
