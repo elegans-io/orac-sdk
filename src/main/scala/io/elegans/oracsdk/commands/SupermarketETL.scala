@@ -107,13 +107,13 @@ object SupermarketETL {
           baskets.sliding(2).filter(x => x.size > 1).map { case (basketPair) =>
             val prev = basketPair.head
             val next = basketPair(1)
-            (prev.size, // prev basket size
-              next.size, // next basket size
-              prev.map { case (item) => item("RANKID") }.distinct, // prev basket items
-              next.map { case (item) => item("RANKID") }.distinct) // next basket items
+            val prevItems = prev.map { case (item) => item("RANKID") }.distinct
+            val nextItems = next.map { case (item) => item("RANKID") }.distinct
+            (prevItems, // prev basket items
+              nextItems) // next basket items
           }
-        }.flatMap(x => x.map(y => y._1 + "," + y._2 + "," + y._3.mkString(",") + "," + y._4.mkString(",")))
-          .saveAsTextFile(params.output + "/BASKET_TO_BASKET_ACTIONS")
+        }.flatMap(x => x.map(y => y._1.mkString(",") + "|" + y._2.mkString(",")))
+          .saveAsTextFile(params.output + "/TRAINERS_LABELS_BASKET")
       }
 
       if(params.rankIdToPopularItems) {
@@ -180,7 +180,8 @@ object SupermarketETL {
     val parser = new OptionParser[Params]("Transform data for various algorithms") {
       head("Generate rank id for items and users and produce:" + "\r" +
         "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\r" +
-        "2) <output>/BASKET_TO_BASKET_ACTIONS : a folder with adjacent basket items" + "\r" +
+        "2) <output>/TRAINERS_LABELS_BASKET : a folder with items from adjacent baskets " + "\r" +
+         "e.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\r" +
         "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\r" +
         "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\r" +
         "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\r" +
