@@ -1,0 +1,4 @@
+[submodule "items-autoencoder-tf"]
+	path = items-autoencoder-tf
+	url = git@github.com:elegans-io/items-autoencoder-tf.git
+	branch = master
