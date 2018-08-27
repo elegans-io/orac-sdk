@@ -9,6 +9,11 @@ The submodules can be downloaded with the following command:
 git submodule update --init --recursive
 ```
 
+To update the submodules:
+```bash
+git submodule update --recursive --remote
+```
+
 To create a self contained jar with the spark code type:
 ```bash
 sbt assembly
