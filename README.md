@@ -42,6 +42,16 @@ spark-submit --driver-memory 8g --class io.elegans.oracsdk.commands.SupermarketE
 
 ## submodules
 
+To download the submodules:
+
 ```bash
 git submodule update --init --recursive
 ```
+
+To update the submodules
+
+```bash
+git submodule update --recursive --remote
+```
+
+
