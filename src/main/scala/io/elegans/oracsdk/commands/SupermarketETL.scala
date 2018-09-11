@@ -178,13 +178,13 @@ object SupermarketETL {
   def main(args: Array[String]) {
     val defaultParams = Params()
     val parser = new OptionParser[Params]("Transform data for various algorithms") {
-      head("Generate rank id for items and users and produce:" + "\r" +
-        "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\r" +
-        "2) <output>/TRAINERS_LABELS_BASKET : a folder with items from adjacent baskets " + "\r" +
-         "\te.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\r" +
-        "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\r" +
-        "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\r" +
-        "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\r" +
+      head("Generate rank id for items and users and produce:" + "\n\r" +
+        "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\n\r" +
+        "2) <output>/TRAINERS_LABELS_BASKET : a folder with items from adjacent baskets " + "\n\r" +
+         "\te.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\n\r" +
+        "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\n\r" +
+        "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\n\r" +
+        "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\n\r" +
         "\tThe Rank ID for the items is calculated using the LSH clustering algorithm."
       )
       help("help").text("prints this usage text")
@@ -233,8 +233,7 @@ object SupermarketETL {
           s"  default: ${defaultParams.rankIdToPopularItems}")
         .action((_, c) => c.copy(rankIdToPopularItems = true))
       opt[String]("output")
-        .text(s"the destination directory for the output: 2 sub folders will be created: " +
-          s" ITEM_TO_RANKID, ACTIONS" +
+        .text(s"the destination directory for the output the subfolders are described on top of this help" +
           s"  default: ${defaultParams.output}")
         .action((x, c) => c.copy(output = x))
     }
