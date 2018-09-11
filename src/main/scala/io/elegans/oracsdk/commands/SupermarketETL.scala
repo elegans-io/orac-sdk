@@ -184,7 +184,8 @@ object SupermarketETL {
          "\te.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\n\r" +
         "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\n\r" +
         "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\n\r" +
-        "5) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\n\r" +
+        "5) <output>/USER_TO_RANKID : a folder mapping user -> rankId" + "\n\r" +
+        "6) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\n\r" +
         "\tThe Rank ID for the items is calculated using the LSH clustering algorithm."
       )
       help("help").text("prints this usage text")
