@@ -20,6 +20,8 @@ object SupermarketETL {
                             shuffle: Boolean = false,
                             genUserItemPairs: Boolean = false,
                             basketToBasket: Boolean = false,
+                            basketToBasketComplete: Boolean = false,
+                            basketToBasketWindow: Int = 2,
                             rankIdToPopularItems: Boolean = false
                            )
 
@@ -100,11 +102,11 @@ object SupermarketETL {
       }.map{ case(invoiceID, items2)=>
         (invoiceID, items2.toList.sortWith(_.head("INVOICE_DATE") < _.head("INVOICE_DATE")))
       } /* each line is (partnerID, Baskets[Basket[Item[key, value]]]) baskets are sorted in asc. order by date */
-        .map{ case(_, baskets) => baskets.map{case(basket) => basket} } // foreach basket
+        .map{ case(_, baskets) => baskets } // foreach basket
 
       if(params.basketToBasket) {
         groupedActions.map { case (baskets) =>
-          baskets.sliding(2).filter(x => x.size > 1).map { case (basketPair) =>
+          baskets.sliding(params.basketToBasketWindow).filter(x => x.size > 1).map { case (basketPair) =>
             val prev = basketPair.head
             val next = basketPair(1)
             val prevItems = prev.map { case (item) => item("RANKID") }.distinct
@@ -114,6 +116,42 @@ object SupermarketETL {
           }
         }.flatMap(x => x.map(y => y._1.mkString(",") + "|" + y._2.mkString(",")))
           .saveAsTextFile(params.output + "/TRAINERS_LABELS_BASKET")
+      }
+
+      if(params.basketToBasket) {
+        groupedActions.map { case (baskets) =>
+          baskets.sliding(params.basketToBasketWindow).filter(x => x.size > 1).map { case (userBasketWindow) =>
+            userBasketWindow.map { case(basket) =>
+              basket.map { case (item) => item("RANKID") }.distinct
+            }
+          }
+        }.map(row =>
+          row.map{ case(basket) =>
+            basket.map{ case (items) =>
+              items.mkString(",")
+            }.mkString("|")
+          }
+        ).saveAsTextFile(params.output + "/TRAINERS_LABELS_BASKET")
+      }
+
+      if(params.basketToBasketComplete) {
+        groupedActions.map { case (baskets) =>
+          baskets.sliding(params.basketToBasketWindow).filter(x => x.size > 1).map { case (userBasketWindow) =>
+            userBasketWindow.map { case(basket) =>
+              val sampleItem = basket.head
+              val user = sampleItem("PRT_PARTNER_ID")
+              val invoiceDate = sampleItem("INVOICE_DATE")
+              val items = basket.map { case (item) => item("RANKID") }.distinct
+              (user, invoiceDate, items)
+            }
+          }
+        }.map(row =>
+          row.map{ case(basket) =>
+            basket.map{ case (user, invoiceDate, items) =>
+              user + ":" + invoiceDate + ":" + items.mkString(",")
+            }.mkString("|")
+          }
+        ).saveAsTextFile(params.output + "/TRAINERS_LABELS_BASKET_COMPLETE")
       }
 
       if(params.rankIdToPopularItems) {
@@ -182,10 +220,12 @@ object SupermarketETL {
         "1) <output>/COOCCURRENCE_<DictSize>_<DatasetSize> : a folder with items co-occurrence" + "\n\r" +
         "2) <output>/TRAINERS_LABELS_BASKET : a folder with items from adjacent baskets " + "\n\r" +
          "\te.g. items_0_basket_0,items_1_basket_0,..|items_0_basket_1,items_1_basket_1,.." + "\n\r" +
-        "3) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\n\r" +
-        "4) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\n\r" +
-        "5) <output>/USER_TO_RANKID : a folder mapping user -> rankId" + "\n\r" +
-        "6) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\n\r" +
+        "3) <output>/TRAINERS_LABELS_BASKET_COMPLETE : a folder with items from adjacent baskets " + "\n\r" +
+         "\te.g. user:data:items_0_basket_0,items_1_basket_0,..|user:data:items_0_basket_1,items_1_basket_1,.." + "\n\r" +
+        "4) <output>/USER_ITEM : a folder with user,item pairs from baskets" + "\n\r" +
+        "5) <output>/ITEM_TO_RANKID : a folder mapping item -> rankId" + "\n\r" +
+        "6) <output>/USER_TO_RANKID : a folder mapping user -> rankId" + "\n\r" +
+        "7) <output>/RANK_ID_TO_RANKED_ITEMS : a folder with item's rank id => corresponding items id ordered by popularity" + "\n\r" +
         "\tThe Rank ID for the items is calculated using the LSH clustering algorithm."
       )
       help("help").text("prints this usage text")
@@ -198,7 +238,7 @@ object SupermarketETL {
           s"  default: ${defaultParams.simThreshold}")
         .action((x, c) => c.copy(simThreshold = x))
       opt[Int]("sliding")
-        .text(s"sliding window for shingles" +
+        .text(s"sliding window for shingles, used to calculate the LSH" +
           s"  default: ${defaultParams.sliding}")
         .action((x, c) => c.copy(sliding = x))
       opt[Int]("numHashTables")
@@ -210,7 +250,7 @@ object SupermarketETL {
           s"  default: ${defaultParams.clustering}")
         .action((x, c) => c.copy(clustering = x))
       opt[Int]("windowSize")
-        .text(s"word2vec window size" +
+        .text(s"word2vec window size, used to generate input for embedding algorithm" +
           s"  default: ${defaultParams.windowSize}")
         .action((x, c) => c.copy(windowSize = x))
       opt[Unit]("pairs")
@@ -229,6 +269,15 @@ object SupermarketETL {
         .text(s"generate basket to basket item list" +
           s"  default: ${defaultParams.basketToBasket}")
         .action((_, c) => c.copy(basketToBasket = true))
+      opt[Unit]("basketToBasketComplete")
+        .text(s"generate basket to basket item list with user and time" +
+          s"  default: ${defaultParams.basketToBasketComplete}")
+        .action((_, c) => c.copy(basketToBasketComplete = true))
+      opt[Int]("basketToBasketWindow")
+        .text(s"the window for the basket to basket item list, has effect only " +
+          "if basketToBasket and basketToBasketComplete are used" +
+          s"  default: ${defaultParams.basketToBasketWindow}")
+        .action((x, c) => c.copy(basketToBasketWindow = x))
       opt[Unit]("rankIdToPopularItems")
         .text(s"generate rankId to items sorted by popularity" +
           s"  default: ${defaultParams.rankIdToPopularItems}")
