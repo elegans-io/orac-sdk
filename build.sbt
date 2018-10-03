@@ -25,8 +25,14 @@ libraryDependencies ++= {
   val OracEntitiesVersion = "1.0.2"
   val ScoptVersion	= "3.7.0"
   val SparkXmlVersion = "0.4.1"
+  val BreezeLinalg = "0.13.2"
+  val StanfordNLP = "3.9.1"
   Seq(
     "com.github.scopt" %% "scopt" % ScoptVersion,
+    "org.scalanlp" %% "breeze" % BreezeLinalg,
+    "org.scalanlp" %% "breeze-natives" % BreezeLinalg,
+    "edu.stanford.nlp" % "stanford-corenlp" % StanfordNLP,
+    "edu.stanford.nlp" % "stanford-corenlp" % StanfordNLP classifier "models",
     "com.typesafe.akka" %% "akka-actor" % AkkaVersion,
     "com.typesafe.akka" %% "akka-contrib" % AkkaVersion,
     "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion,

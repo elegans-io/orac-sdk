@@ -33,6 +33,15 @@ The program has a command line help.
 
 ### command line 
 
+#### generation of a fat jar
+
+```bash
+export JAVA_OPTS="-Xms256m -Xmx4g"
+sbt assembly
+```
+
+#### Job sumbission
+
 Sample submission:
 
 ```bash

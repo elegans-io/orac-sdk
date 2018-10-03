@@ -106,26 +106,12 @@ object SupermarketETL {
 
       if(params.basketToBasket) {
         groupedActions.map { case (baskets) =>
-          baskets.sliding(params.basketToBasketWindow).filter(x => x.size > 1).map { case (basketPair) =>
-            val prev = basketPair.head
-            val next = basketPair(1)
-            val prevItems = prev.map { case (item) => item("RANKID") }.distinct
-            val nextItems = next.map { case (item) => item("RANKID") }.distinct
-            (prevItems, // prev basket items
-              nextItems) // next basket items
-          }
-        }.flatMap(x => x.map(y => y._1.mkString(",") + "|" + y._2.mkString(",")))
-          .saveAsTextFile(params.output + "/TRAINERS_LABELS_BASKET")
-      }
-
-      if(params.basketToBasket) {
-        groupedActions.map { case (baskets) =>
           baskets.sliding(params.basketToBasketWindow).filter(x => x.size > 1).map { case (userBasketWindow) =>
             userBasketWindow.map { case(basket) =>
               basket.map { case (item) => item("RANKID") }.distinct
             }
           }
-        }.map(row =>
+        }.flatMap(row =>
           row.map{ case(basket) =>
             basket.map{ case (items) =>
               items.mkString(",")
@@ -145,7 +131,7 @@ object SupermarketETL {
               (user, invoiceDate, items)
             }
           }
-        }.map(row =>
+        }.flatMap(row =>
           row.map{ case(basket) =>
             basket.map{ case (user, invoiceDate, items) =>
               user + ":" + invoiceDate + ":" + items.mkString(",")
