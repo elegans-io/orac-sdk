@@ -63,15 +63,16 @@ object CleanTextPairs {
       (row.getString(6), row.getString(4) + " " + row.getString(5))
     }
 
-    val tokenizedText2 = textPairs.map { case (cv, jd) =>
+    val tokenizedTextRaw = textPairs.map { case (cv, jd) =>
       val cvTokens = TextProcessingUtils.tokenizeSentence(text = cv, stopWords = stopWords)
       val jdTokens = TextProcessingUtils.tokenizeSentence(text = jd, stopWords = stopWords)
       (cv, jd, cvTokens, jdTokens)
     }
 
     val filterLang = params.languages.toSet
-    val tokenizedText = tokenizedText2.filter(document =>
-      filterLang.contains(LanguageGuesser.guessLanguage(document._1)._1))
+    val tokenizedText = tokenizedTextRaw
+      //.filter(document =>
+      //filterLang.contains(LanguageGuesser.guessLanguage(document._1)._1))
 
     val mergedCvJdTokens = tokenizedText.flatMap{case (_, _, cvTok, jdTok) => cvTok ++ jdTok}
 
