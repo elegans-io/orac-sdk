@@ -3,11 +3,11 @@ package io.elegans.oracsdk.commands
 import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
 import io.elegans.oracsdk.tools.TextProcessingUtils
+import org.apache.spark.broadcast.Broadcast
+import io.elegans.oracsdk.tools.LanguageGuesser
 
 /** Read a list of CVs and JobDescriptions, clean and prepare the dataset */
 object CleanTextPairs {
-
-  lazy val textProcessingUtils = new TextProcessingUtils /* lazy initialization of TextProcessingUtils class */
 
   implicit class Crossable[X](xs: Traversable[X]) {
     def cross[Y](ys: Traversable[Y]) = for { x <- xs; y <- ys } yield (x, y)
@@ -24,6 +24,7 @@ object CleanTextPairs {
                              cvfile: String = "CVs.tsv",
                              jdfile: String = "JDs.tsv",
                              dictionary: String = "dictionary.txt",
+                             languages: List[String] = List("en", "it"),
                              output: String = "CVs_DATASET"
                            )
 
@@ -50,43 +51,89 @@ object CleanTextPairs {
       case (w) => (w, 0)
     }.collectAsMap()
 
-    cvData.col("")
+    val mergedData = spark.sql(
+      //firstname, lastname, email, jd, cv
+      "SELECT cv.`User Firstname`, cv.`User Lastname`, cv.`User E-mail Address`, " +
+        "jd.`Req #`, jd.`Requisition Title Translated`, jd.`Requisition Description Translated`, cv.`Job Seeker Resume Body`" +
+        " FROM CVs cv JOIN JDs jd ON cv.`Req #` = jd.`Req #`")
 
+    val stopWords = spark.sparkContext.broadcast(Set[String]())
 
-    val merged_data = spark.sql(
-      "SELECT user, gender, age, job, item, rating, time, genres, title" +
-        " FROM transactions t JOIN items i ON i.id = t.item JOIN users u ON u.id = t.user")
+    val textPairs = mergedData.rdd.map { case (row) =>
+      (row.getString(6), row.getString(4) + " " + row.getString(5))
+    }
 
-/*
-    val extracted_data_sentences: RDD[List[String]] =
-      merged_data.rdd
-        .map(x => {
-          val title = if (x.isNullAt(8)) { "" } else x.getString(8)
-          List(x.getString(0), x.getString(1),
-            x.getString(2), x.getString(3),
-            x.getString(4), x.getString(5),
-            x.getString(6), x.getString(7), title
-          )
-        })
+    val tokenizedText2 = textPairs.map { case (cv, jd) =>
+      val cvTokens = TextProcessingUtils.tokenizeSentence(text = cv, stopWords = stopWords)
+      val jdTokens = TextProcessingUtils.tokenizeSentence(text = jd, stopWords = stopWords)
+      (cv, jd, cvTokens, jdTokens)
+    }
 
-    val initialSet = List.empty[List[String]]
-    val addToSet = (s: List[List[String]],
-                    v: List[String]) => s ++ List(v)
-    val mergePartitionSet = (s: List[List[String]],
-                             v: List[List[String]]) => s ++ v
+    val filterLang = params.languages.toSet
+    val tokenizedText = tokenizedText2.filter(document =>
+      filterLang.contains(LanguageGuesser.guessLanguage(document._1)._1))
 
-    val extracted_data = extracted_data_sentences
-      .map(x => (x(0), x)).aggregateByKey(initialSet)(addToSet, mergePartitionSet).map(x => {
-      (x._1, x._2.sortBy(z => z(6).toInt))
-    })
+    val mergedCvJdTokens = tokenizedText.flatMap{case (_, _, cvTok, jdTok) => cvTok ++ jdTok}
 
-    val extractedSentences = extracted_data.flatMap(x => x._2)
-      .map(x => { List("user_" + x(0), "gender_" + x(1),
-        "age_" + x(2), "job_" + x(3), "itemid_" + x(4),
-        "rating_" + x(5), x(7).split(",").mkString("_"), x(8).split(",").mkString(" ") ) })
-      .map(x => x.mkString(" "))
-    extractedSentences.saveAsTextFile(params.output + "/" + params.format) /* write the output in plain text format */
-*/
+    val mergedCvJdTokensWordCount = mergedCvJdTokens.map(token => (token, 1)).reduceByKey(_ + _).collectAsMap()
+
+    val outOfDictionaryTokens = mergedCvJdTokens.map { case(word) =>
+      dictionary.contains(word) match {
+        case false =>
+          val candidates = (1 to word.length).map{ case(i) => word.slice(0, i) }.map { case(firstChunk) =>
+            val secondChunk = word.replaceAll("^" + firstChunk, "")
+            if(dictionary.contains(firstChunk) && dictionary.contains(secondChunk)) {
+              (word, (firstChunk, secondChunk))
+            } else {
+              (word, ("", ""))
+            }
+          }
+          val replacement = candidates.map{
+            case((origToken,(firstPart, secondPart))) =>
+              val count = mergedCvJdTokensWordCount.getOrElse(firstPart, 0) +
+                mergedCvJdTokensWordCount.getOrElse(secondPart, 0)
+              (origToken,(firstPart, secondPart, count))
+          }.maxBy(_._2._3)
+          (replacement._1, (replacement._2._1, replacement._2._2))
+        case true =>
+          (word, (word, ""))
+      }
+    }.filter(word => !(word._2._1 != "" && word._2._2 == "")).distinct
+
+    outOfDictionaryTokens.saveAsTextFile(params.output + "/OUT_OF_DICT_TOKENS")
+
+    val outOfDictionaryTokensMap = outOfDictionaryTokens.collectAsMap
+
+    val tokenizedTextReplacedTokens = tokenizedText.map{
+      case (cv, jd, cvTokens, jdTokens) =>
+        val newCvTokens = cvTokens.map(t => List(t)).flatMap { case(token) =>
+          outOfDictionaryTokensMap.get(token.head) match {
+            case Some(t) =>
+              List(t._1, t._2)
+            case _ =>
+              token
+          }
+        }
+        (cv, jd,
+          newCvTokens.filter(_ != ""),
+          jdTokens.filter(_ != ""))
+    }
+
+    tokenizedTextReplacedTokens.map {
+      case((_, _, newCvTokens, jdTokens)) =>
+        newCvTokens.mkString(",") + "\t" + jdTokens.mkString(",")
+    }.saveAsTextFile(params.output + "/DATASET_CV_JD")
+
+    tokenizedTextReplacedTokens.map {
+      case((_, _, newCvTokens, jdTokens)) =>
+        newCvTokens ++ jdTokens
+    }.flatMap(list => list).map(token => (token, 1))
+      .reduceByKey(_ + _)
+      .sortBy(_._2, ascending=false)
+      .map(pair => pair._1)
+      .zipWithIndex
+      .saveAsTextFile(params.output + "/DICTIONARY")
+
     spark.stop()
   }
 

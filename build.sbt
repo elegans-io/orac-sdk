@@ -26,6 +26,7 @@ libraryDependencies ++= {
   val ScoptVersion	= "3.7.0"
   val SparkXmlVersion = "0.4.1"
   val BreezeLinalg = "0.13.2"
+  val TikaVersion	= "1.18"
   val StanfordNLP = "3.9.1"
   Seq(
     "com.github.scopt" %% "scopt" % ScoptVersion,
@@ -46,7 +47,10 @@ libraryDependencies ++= {
     "io.elegans" %% "orac-entities" % OracEntitiesVersion,
     "org.apache.spark" %% "spark-core" % SparkVersion,
     "org.apache.spark" %% "spark-mllib" % SparkVersion,
-    "com.databricks" %% "spark-xml" % SparkXmlVersion
+    "com.databricks" %% "spark-xml" % SparkXmlVersion,
+    "org.apache.tika" % "tika-app" % TikaVersion,
+    "org.apache.tika" % "tika-core" % TikaVersion,
+    "org.apache.tika" % "tika-parsers" % TikaVersion
   )
 }
 

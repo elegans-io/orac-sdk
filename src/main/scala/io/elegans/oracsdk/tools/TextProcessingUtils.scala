@@ -12,15 +12,18 @@ import edu.stanford.nlp.pipeline._
 import scala.collection.JavaConversions._
 import java.util.Properties
 
-class TextProcessingUtils {
+object TextProcessingUtils {
 
   /** Instantiate a StanfordCoreNLP pipeline
     *
     * @return an instance of StanfordCoreNLP
     */
-  def createNLPPipeline(): StanfordCoreNLP = {
+  def createNLPPipeline(properties: Map[String, String] =
+                        Map("annotators" -> "tokenize, ssplit, pos, lemma")): StanfordCoreNLP = {
     val props = new Properties()
-    props.setProperty("annotators", "tokenize, ssplit, pos, lemma")
+    properties.map{ case(key, value) =>
+      props.setProperty(key, value)
+    }
     val pipeline: StanfordCoreNLP = new StanfordCoreNLP(props)
     pipeline
   }
@@ -64,9 +67,9 @@ class TextProcessingUtils {
     * @param stopWords the set of stopwords
     * @return a list of tokens
     */
-  def tokenizeSentence(text: String, stopWords: Broadcast[Set[String]]): List[String] = {
+  def tokenizeSentence(text: String, stopWords: Broadcast[Set[String]],
+                       pipeline: StanfordCoreNLP = createNLPPipeline() ): List[String] = {
     try {
-      val pipeline = createNLPPipeline() /* get an instance of the NLP pipeline */
       val doc_lemmas : List[String] =  /* call the tokenization function */
         plainTextToLemmas(text, stopWords, pipeline)
       doc_lemmas /* return the original sentence annotated with tokens */
