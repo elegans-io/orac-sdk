@@ -4,7 +4,6 @@ import org.apache.spark.sql.SparkSession
 import scopt.OptionParser
 import io.elegans.oracsdk.tools.TextProcessingUtils
 import org.apache.spark.broadcast.Broadcast
-import io.elegans.oracsdk.tools.LanguageGuesser
 
 /** Read a list of CVs and JobDescriptions, clean and prepare the dataset */
 object CleanTextPairs {
@@ -71,8 +70,6 @@ object CleanTextPairs {
 
     val filterLang = params.languages.toSet
     val tokenizedText = tokenizedTextRaw
-      //.filter(document =>
-      //filterLang.contains(LanguageGuesser.guessLanguage(document._1)._1))
 
     val mergedCvJdTokens = tokenizedText.flatMap{case (_, _, cvTok, jdTok) => cvTok ++ jdTok}
 
