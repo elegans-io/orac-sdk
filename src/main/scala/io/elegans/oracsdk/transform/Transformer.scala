@@ -88,7 +88,6 @@ object Transformer extends java.io.Serializable {
       .sliding(sliding).toList
   }
 
-
   /** clustering by nearest elements, it is accurate, a bit faster and returns more clusters
     *
     * @param similarity the distance between items

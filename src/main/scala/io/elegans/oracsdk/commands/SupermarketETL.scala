@@ -45,7 +45,11 @@ object SupermarketETL {
       val inputData: RDD[Array[String]] = df.rdd.map(x => x(0))
         .map(x => x.asInstanceOf[scala.collection.mutable.WrappedArray[Row]]
           .toList.map(y => (y.getString(0), y.getString(1))))
-        .map(x => x.toMap).map(x => columns.map(e => x.getOrElse(e, "")).toArray)
+        .map(x => x.toMap)
+        .filter { case (m) =>
+          val descr = m.getOrElse("DESCRIPTION", "")
+          descr.matches(".*[{IsAlphabetic}]+.*")
+        }.map(x => columns.map(e => x.getOrElse(e, "")).toArray)
 
       val clustering: RDD[(String, String, Double)] => RDD[(String, Long)] = params.clustering match {
         case 1 => lshClustering1
