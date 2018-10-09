@@ -130,6 +130,7 @@ object CleanTextPairs {
       .sortBy(_._2, ascending=false)
       .map(pair => pair._1)
       .zipWithIndex
+      .map(term => term._1 + "," + term._2)
       .saveAsTextFile(params.output + "/DICTIONARY")
 
     spark.stop()
